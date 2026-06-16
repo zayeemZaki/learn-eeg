@@ -55,9 +55,6 @@ export async function POST(request: Request): Promise<NextResponse> {
           addRandomSuffix: true,
         };
       },
-      // No DB write on completion: the resulting URL is returned to the client,
-      // which puts it on the form and persists it via the question action.
-      onUploadCompleted: async () => {},
     });
 
     return NextResponse.json(result);

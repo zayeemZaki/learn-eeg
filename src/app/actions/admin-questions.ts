@@ -43,7 +43,7 @@ export async function createQuestion(raw: QuestionInput): Promise<ActionResult> 
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { stem, explanation, imageUrl, difficulty, choices } = parsed.data;
+  const { stem, explanation, imageUrl, difficulty, category, choices } = parsed.data;
 
   await db.question.create({
     data: {
@@ -51,6 +51,7 @@ export async function createQuestion(raw: QuestionInput): Promise<ActionResult> 
       explanation,
       imageUrl,
       difficulty,
+      category,
       choices: {
         create: choices.map((c) => ({ text: c.text, isCorrect: c.isCorrect })),
       },
@@ -84,7 +85,7 @@ export async function updateQuestion(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { stem, explanation, imageUrl, difficulty, choices } = parsed.data;
+  const { stem, explanation, imageUrl, difficulty, category, choices } = parsed.data;
 
   const existing = await db.question.findUnique({
     where: { id },
@@ -119,7 +120,7 @@ export async function updateQuestion(
     await db.$transaction([
       db.question.update({
         where: { id },
-        data: { stem, explanation, imageUrl, difficulty },
+        data: { stem, explanation, imageUrl, difficulty, category },
       }),
       // Delete first (only the safe-to-remove ids verified above).
       ...(removedIds.length > 0

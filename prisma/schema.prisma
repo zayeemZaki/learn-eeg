@@ -37,6 +37,21 @@ enum AtlasCategory {
   ABNORMAL_VARIANT
 }
 
+// Clinical topic a question belongs to. Additive with an OTHER default so every
+// existing Question row stays valid without a data backfill — the migration's
+// column default sets all prior rows to OTHER. Used for per-category analytics
+// (M3) and admin authoring; distinct from AtlasCategory, which classifies atlas
+// images, not questions.
+enum QuestionCategory {
+  NORMAL_VARIANT
+  EPILEPTIFORM
+  SEIZURE
+  ARTIFACT
+  ENCEPHALOPATHY
+  FOCAL
+  OTHER
+}
+
 // ── Auth + profile ────────────────────────────────────────────────────────────
 
 model User {
@@ -99,16 +114,19 @@ model VerificationToken {
 // ── Question bank ───────────────────────────────────────────────────────────
 
 model Question {
-  id          String  @id @default(cuid())
-  stem        String  // the clinical prompt
-  explanation String  // teaching point shown after answering
-  imageUrl    String? // optional EEG trace
-  difficulty  Int     @default(1) // 1=easy ... 3=hard
+  id          String           @id @default(cuid())
+  stem        String           // the clinical prompt
+  explanation String           // teaching point shown after answering
+  imageUrl    String?          // optional EEG trace
+  difficulty  Int              @default(1) // 1=easy ... 3=hard
+  category    QuestionCategory @default(OTHER) // clinical topic; OTHER for legacy rows
 
   choices  Choice[]
   attempts Attempt[]
 
   createdAt DateTime @default(now())
+
+  @@index([category])
 }
 
 model Choice {

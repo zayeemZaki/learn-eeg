@@ -1,31 +1,68 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
-import { db } from "@/lib/db";
+import { getUserSummary } from "@/lib/stats";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatTile } from "@/components/ui/stat-tile";
 import { SectionPanel } from "@/components/ui/section-panel";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { LineTrend } from "@/components/charts/line-trend";
+import { BarBreakdown } from "@/components/charts/bar-breakdown";
+import { RadialAccuracy } from "@/components/charts/radial-accuracy";
 import { POSITION_LABELS } from "@/lib/validations/auth";
-import { QuestionsIcon, AtlasIcon, LiteratureIcon } from "@/components/shell/nav-icons";
+import { QuestionsIcon } from "@/components/shell/nav-icons";
 
-// The "jump back in" sections, rendered as a tight nav list (not big filler
-// cards). Deep analytics arrive in M3; this stays a clean wayfinding treatment.
-const SECTIONS = [
-  { href: "/questions", title: "Question Bank", body: "Test your interpretation against teaching cases.", icon: <QuestionsIcon /> },
-  { href: "/atlas", title: "Atlas", body: "Reference normal and abnormal variants.", icon: <AtlasIcon /> },
-  { href: "/literature", title: "Literature", body: "Recent epilepsy/EEG publications from PubMed.", icon: <LiteratureIcon /> },
-];
+export const metadata = { title: "Dashboard" };
 
+const ACTIVITY_DAYS = 30;
+// Categories below this accuracy are surfaced as focus areas; a category with
+// no clear weakness shouldn't be nagged about.
+const WEAK_THRESHOLD = 80;
+
+const relTimeFmt = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
+
+/** "today" / "3 days ago" from a past date, server-rendered at request time. */
+function lastActiveLabel(at: Date, now: Date): string {
+  const days = Math.floor((now.getTime() - at.getTime()) / (24 * 60 * 60 * 1000));
+  if (days <= 0) return "Today";
+  return relTimeFmt.format(-days, "day");
+}
+
+/**
+ * The user dashboard — the signed-in user's own practice analytics. EVERY figure
+ * comes from getUserSummary(userId), which is scoped to this user alone (no
+ * cross-user data) and routes all accuracy through the shared latest-per-question
+ * definition. Only computed numbers reach the client; no raw isCorrect rows.
+ *
+ * With zero attempts we show a guiding EmptyState rather than empty charts.
+ */
 export default async function DashboardPage() {
   const session = await auth();
   const userId = session!.user.id;
+  const now = new Date();
 
-  // Aggregate progress in the database rather than pulling rows into the app.
-  const [total, correct] = await Promise.all([
-    db.attempt.count({ where: { userId } }),
-    db.attempt.count({ where: { userId, isCorrect: true } }),
-  ]);
-  const accuracy = total > 0 ? Math.round((correct / total) * 100) : null;
+  const summary = await getUserSummary(userId, now, ACTIVITY_DAYS);
+  const { accuracy } = summary;
+  const hasAttempts = summary.totalAttempts > 0;
+
+  // Difficulty / category breakdowns as percentage bars (only groups attempted).
+  const difficultyBars = summary.byDifficulty.map((d) => ({
+    label: d.label,
+    value: d.accuracy.percent ?? 0,
+    hint: `${d.accuracy.correct} of ${d.accuracy.total} correct`,
+  }));
+  const categoryBars = summary.byCategory.map((c) => ({
+    label: c.label,
+    value: c.accuracy.percent ?? 0,
+    hint: `${c.accuracy.correct} of ${c.accuracy.total} correct`,
+  }));
+
+  // Focus areas: weakest attempted categories under the threshold.
+  const focusAreas = summary.weakCategories
+    .filter((c) => c.accuracy.percent != null && c.accuracy.percent < WEAK_THRESHOLD)
+    .slice(0, 3);
 
   return (
     <div className="flex flex-col gap-8">
@@ -34,74 +71,138 @@ export default async function DashboardPage() {
         description={`${POSITION_LABELS[session!.user.position]} · ${session!.user.institution}`}
       />
 
-      {/* Progress as stat tiles in the new shell. The accuracy tile carries the
-          one thin accent bar, shown only once there's an attempt to measure. */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <StatTile
-          label="Questions answered"
-          value={total.toLocaleString()}
-          sub={total === 0 ? "Answer your first question to start tracking." : undefined}
+      {!hasAttempts ? (
+        <EmptyState
+          icon={<QuestionsIcon />}
+          message="You haven't answered any questions yet."
+          hint="Work through a few teaching cases and your progress, accuracy, and focus areas will appear here."
+          action={{ href: "/questions", label: "Start practising" }}
         />
-        <StatTile
-          label="Accuracy"
-          value={accuracy !== null ? `${accuracy}%` : "—"}
-          sub={
-            accuracy !== null
-              ? `${correct.toLocaleString()} of ${total.toLocaleString()} correct`
-              : "No attempts yet"
-          }
-        >
-          {accuracy !== null ? (
-            <div
-              className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]"
-              role="progressbar"
-              aria-label="Accuracy"
-              aria-valuenow={accuracy}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            >
-              <div
-                className="h-full rounded-full bg-[var(--accent)]"
-                style={{ width: `${accuracy}%` }}
-              />
-            </div>
-          ) : null}
-        </StatTile>
-      </div>
+      ) : (
+        <>
+          {/* Top-line stats. */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile
+              label="Questions answered"
+              value={summary.totalAttempts.toLocaleString()}
+              sub={`across ${summary.distinctQuestions.toLocaleString()} ${
+                summary.distinctQuestions === 1 ? "question" : "questions"
+              }`}
+            />
+            <StatTile
+              label="Distinct practised"
+              value={summary.distinctQuestions.toLocaleString()}
+              sub="unique questions attempted"
+            />
+            <StatTile
+              label="Accuracy"
+              value={accuracy.percent != null ? `${accuracy.percent}%` : "—"}
+              sub={`${accuracy.correct} of ${accuracy.total} on latest try`}
+            />
+            <StatTile
+              label="Last active"
+              value={summary.lastActiveAt ? lastActiveLabel(summary.lastActiveAt, now) : "—"}
+              sub={`${ACTIVITY_DAYS}-day activity below`}
+            />
+          </div>
 
-      {/* Jump back in: a tight, aligned section list — no giant filler cards. */}
-      <SectionPanel title="Jump back in">
-        <ul className="-m-2 flex flex-col">
-          {SECTIONS.map((section) => (
-            <li key={section.href}>
+          {/* Accuracy gauge + activity trend, side by side on wide screens. */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            <SectionPanel title="Current accuracy" className="lg:col-span-1">
+              <RadialAccuracy percent={accuracy.percent} ariaLabel="Your accuracy" />
+              <p className="mt-2 text-center text-sm text-[var(--muted)]">
+                Based on your latest answer to each of {accuracy.total} questions.
+              </p>
+            </SectionPanel>
+
+            <SectionPanel title={`Activity · last ${ACTIVITY_DAYS} days`} className="lg:col-span-2">
+              <LineTrend data={summary.activity} ariaLabel="Your daily attempts over the last 30 days" />
+            </SectionPanel>
+          </div>
+
+          {/* Breakdowns: accuracy by category and by difficulty. */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SectionPanel title="Accuracy by category">
+              {categoryBars.length > 0 ? (
+                <BarBreakdown
+                  data={categoryBars}
+                  ariaLabel="Accuracy by question category"
+                  unit="%"
+                  max={100}
+                />
+              ) : (
+                <p className="text-sm text-[var(--muted)]">No category data yet.</p>
+              )}
+            </SectionPanel>
+
+            <SectionPanel title="Accuracy by difficulty">
+              {difficultyBars.length > 0 ? (
+                <BarBreakdown
+                  data={difficultyBars}
+                  ariaLabel="Accuracy by question difficulty"
+                  unit="%"
+                  max={100}
+                />
+              ) : (
+                <p className="text-sm text-[var(--muted)]">No difficulty data yet.</p>
+              )}
+            </SectionPanel>
+          </div>
+
+          {/* Focus areas: the weakest categories, with a route into practice. */}
+          <SectionPanel
+            title="Focus areas"
+            aside={
               <Link
-                href={section.href}
-                className="group flex items-center gap-4 rounded-lg p-2 outline-none transition hover:bg-[var(--background)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
+                href="/questions?status=unanswered"
+                className="text-sm font-medium text-[var(--accent)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
               >
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--muted)] transition group-hover:border-[color-mix(in_srgb,var(--accent)_40%,var(--border))] group-hover:text-[var(--accent)]">
-                  {section.icon}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-medium text-[var(--foreground)]">
-                    {section.title}
-                  </span>
-                  <span className="block truncate text-sm text-[var(--muted)]">
-                    {section.body}
-                  </span>
-                </span>
-                <svg
-                  viewBox="0 0 16 16"
-                  className="h-4 w-4 shrink-0 text-[var(--muted)] transition-transform motion-safe:group-hover:translate-x-0.5"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <path d="M3 8h9M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                Practise more
               </Link>
-            </li>
-          ))}
-        </ul>
-      </SectionPanel>
+            }
+          >
+            {focusAreas.length === 0 ? (
+              <p className="text-sm text-[var(--muted)]">
+                No weak spots yet — you&apos;re at or above {WEAK_THRESHOLD}% in every category
+                you&apos;ve practised. Keep going.
+              </p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-[var(--border)]">
+                {focusAreas.map((area) => (
+                  <li
+                    key={area.key}
+                    className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-[var(--foreground)]">{area.label}</p>
+                      <p className="text-sm text-[var(--muted)] tabular-nums">
+                        {area.accuracy.correct} of {area.accuracy.total} correct
+                      </p>
+                    </div>
+                    <Badge tone="negative">{area.accuracy.percent}%</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionPanel>
+
+          {/* Wayfinding back into the bank. */}
+          <Card className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="font-medium text-[var(--foreground)]">Keep practising</p>
+              <p className="text-sm text-[var(--muted)]">
+                Work through more teaching cases to sharpen your weak areas.
+              </p>
+            </div>
+            <Link
+              href="/questions"
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+            >
+              Go to question bank
+            </Link>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

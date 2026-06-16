@@ -15,8 +15,10 @@ import {
   questionSchema,
   MIN_DIFFICULTY,
   MAX_DIFFICULTY,
+  QUESTION_CATEGORY_LABELS,
   type QuestionInput,
 } from "@/lib/validations/question";
+import { QuestionCategory } from "@prisma/client";
 
 /** A choice row in the editor. `key` is a stable client id for React lists; an
  *  existing choice also carries its persisted `id` so updates target it. */
@@ -35,6 +37,7 @@ interface QuestionFormProps {
     explanation: string;
     imageUrl: string | null;
     difficulty: number;
+    category: QuestionCategory;
     choices: { id: string; text: string; isCorrect: boolean }[];
   };
 }
@@ -64,6 +67,9 @@ export function QuestionForm({ question }: QuestionFormProps) {
   const [explanation, setExplanation] = useState(question?.explanation ?? "");
   const [imageUrl, setImageUrl] = useState<string | null>(question?.imageUrl ?? null);
   const [difficulty, setDifficulty] = useState(question?.difficulty ?? MIN_DIFFICULTY);
+  const [category, setCategory] = useState<QuestionCategory>(
+    question?.category ?? QuestionCategory.OTHER,
+  );
   const [choices, setChoices] = useState<ChoiceRow[]>(
     question
       ? question.choices.map((c) => ({ key: c.id, id: c.id, text: c.text, isCorrect: c.isCorrect }))
@@ -95,6 +101,7 @@ export function QuestionForm({ question }: QuestionFormProps) {
       explanation,
       imageUrl,
       difficulty,
+      category,
       choices: choices.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })),
     };
 
@@ -155,6 +162,21 @@ export function QuestionForm({ question }: QuestionFormProps) {
           ).map((level) => (
             <option key={level} value={level}>
               {level} — {DIFFICULTY_LABELS[level]}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Category" htmlFor="category">
+        <select
+          id="category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value as QuestionCategory)}
+          className={inputClass()}
+        >
+          {Object.values(QuestionCategory).map((value) => (
+            <option key={value} value={value}>
+              {QUESTION_CATEGORY_LABELS[value]}
             </option>
           ))}
         </select>

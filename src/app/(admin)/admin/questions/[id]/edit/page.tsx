@@ -27,6 +27,7 @@ export default async function EditQuestionPage({
       explanation: true,
       imageUrl: true,
       difficulty: true,
+      category: true,
       choices: {
         select: { id: true, text: true, isCorrect: true },
         orderBy: { id: "asc" },

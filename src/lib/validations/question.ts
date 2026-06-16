@@ -8,6 +8,23 @@
  * upload token route, the upload component, and any future reuse all agree.
  */
 import { z } from "zod";
+import { QuestionCategory } from "@prisma/client";
+
+/**
+ * Human labels for the QuestionCategory enum (UI + display). Mirrors the
+ * ATLAS_CATEGORY_LABELS / POSITION_LABELS style so the form select, dashboards,
+ * and any badge render the same text — category is therefore always conveyed by
+ * label, never colour alone.
+ */
+export const QUESTION_CATEGORY_LABELS: Record<QuestionCategory, string> = {
+  [QuestionCategory.NORMAL_VARIANT]: "Normal variant",
+  [QuestionCategory.EPILEPTIFORM]: "Epileptiform",
+  [QuestionCategory.SEIZURE]: "Seizure",
+  [QuestionCategory.ARTIFACT]: "Artifact",
+  [QuestionCategory.ENCEPHALOPATHY]: "Encephalopathy",
+  [QuestionCategory.FOCAL]: "Focal abnormality",
+  [QuestionCategory.OTHER]: "Other / uncategorized",
+};
 
 /** Content types the EEG image uploader and token route accept. */
 export const ALLOWED_IMAGE_TYPES = [
@@ -45,6 +62,11 @@ export const questionSchema = z
       .min(MIN_DIFFICULTY)
       .max(MAX_DIFFICULTY)
       .default(MIN_DIFFICULTY),
+    // Native enum: only the seven QuestionCategory values are accepted. Required
+    // (no UI path leaves it unset — the form defaults the select to OTHER).
+    category: z.nativeEnum(QuestionCategory, {
+      errorMap: () => ({ message: "Choose a category" }),
+    }),
     choices: z.array(choiceSchema).min(2, "Add at least two options"),
   })
   // Exactly one option may be marked correct — enforced here so both the form

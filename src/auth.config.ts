@@ -1,10 +1,16 @@
 /**
- * Edge-safe Auth.js configuration.
+ * Shared Auth.js configuration for the SERVER instance (auth.ts).
  *
- * This file must not import Node-only code (Prisma, bcrypt) because it runs in
- * the Edge middleware. It declares pages, the JWT session strategy, the
- * authorization gate for protected routes, and the token<->session mapping.
- * The Credentials provider's `authorize` (which needs the DB) lives in auth.ts.
+ * Holds the edge-safe half: pages, the JWT session strategy, the authorization
+ * gate, and the token<->session mapping. It must not import Node-only code
+ * (Prisma, bcrypt); the Credentials provider's `authorize` (which needs the DB)
+ * is added in auth.ts.
+ *
+ * NOTE: the request-gate proxy (proxy.ts) does NOT import this file — it inlines
+ * an identical copy of this config, so its entry stays self-contained and no
+ * bundler can follow a path alias from it into the Node-only server graph. If
+ * you change the callbacks below, mirror the change in proxy.ts so the proxy
+ * guard and the server stay in lockstep.
  */
 import type { NextAuthConfig } from "next-auth";
 

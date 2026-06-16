@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { EegImage } from "@/components/ui/eeg-image";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Public URL slugs map to enum values; unknown slugs 404. This ordered list is
 // the single source of truth for both the routing and the tab bar below.
@@ -37,16 +39,12 @@ export default async function AtlasCategoryPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">
-        EEG Atlas
-      </h1>
+      <PageHeader title="EEG Atlas" />
 
       <SegmentedTabs tabs={tabs} />
 
       {entries.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-[var(--border)] p-8 text-center text-[var(--muted)]">
-          No entries in {current.title.toLowerCase()} yet.
-        </p>
+        <EmptyState message={`No entries in ${current.title.toLowerCase()} yet.`} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {entries.map((entry) => (

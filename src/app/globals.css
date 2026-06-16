@@ -62,6 +62,21 @@ input:-webkit-autofill:active {
 }
 
 /*
+ * Mobile shell drawer entrance: slide in from the left edge. Applied via the
+ * `motion-safe:animate-[drawerIn_…]` utility on the drawer panel, so it is
+ * inherently suppressed under prefers-reduced-motion (Tailwind's motion-safe
+ * variant drops the class entirely) — the panel then simply appears.
+ */
+@keyframes drawerIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/*
  * Whisper-faint EEG strip-chart paper behind the hero: a fine cool-gray grid
  * evoking the ruled paper of a paper EEG. Kept very low contrast and masked to
  * fade out vertically so it never competes with the waveform signature.

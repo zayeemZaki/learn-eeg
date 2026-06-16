@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
-import { Card } from "@/components/ui/card";
-import { StatCard } from "@/components/ui/stat-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatTile } from "@/components/ui/stat-tile";
+import { SectionPanel } from "@/components/ui/section-panel";
 
 export const metadata = { title: "Admin Overview" };
 
@@ -51,29 +52,22 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">
-          Overview
-        </h1>
-        <p className="mt-1 text-[var(--muted)]">
-          Activity across the platform at a glance.
-        </p>
-      </div>
+      <PageHeader title="Overview" description="Activity across the platform at a glance." />
 
       {/* Top-line counts. Numbers emphasised, --muted labels. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total users" value={totalUsers.toLocaleString()} />
-        <StatCard label="Questions" value={totalQuestions.toLocaleString()} />
-        <StatCard label="Atlas entries" value={totalAtlasEntries.toLocaleString()} />
-        <StatCard label="Attempts" value={totalAttempts.toLocaleString()} />
+        <StatTile label="Total users" value={totalUsers.toLocaleString()} />
+        <StatTile label="Questions" value={totalQuestions.toLocaleString()} />
+        <StatTile label="Atlas entries" value={totalAtlasEntries.toLocaleString()} />
+        <StatTile label="Attempts" value={totalAttempts.toLocaleString()} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Overall accuracy — the one place a thin accent bar is allowed. */}
-        <StatCard
+        <StatTile
           label="Overall accuracy"
           value={accuracy !== null ? `${accuracy}%` : "—"}
-          hint={
+          sub={
             accuracy !== null
               ? `${correctAttempts.toLocaleString()} of ${totalAttempts.toLocaleString()} correct`
               : "No attempts yet"
@@ -94,24 +88,24 @@ export default async function AdminOverviewPage() {
               />
             </div>
           ) : null}
-        </StatCard>
+        </StatTile>
 
         {/* Recent signups: count this week + the latest few users. */}
-        <Card className="flex flex-col">
-          <div className="flex items-baseline justify-between gap-4">
-            <p className="text-sm font-medium text-[var(--muted)]">Recent signups</p>
-            <p className="text-sm text-[var(--muted)]">
+        <SectionPanel
+          title="Recent signups"
+          aside={
+            <>
               <span className="font-[family-name:var(--font-display)] font-bold tabular-nums text-[var(--foreground)]">
                 {signupsThisWeek}
               </span>{" "}
               this week
-            </p>
-          </div>
-
+            </>
+          }
+        >
           {recentUsers.length === 0 ? (
-            <p className="mt-4 text-sm text-[var(--muted)]">No users yet.</p>
+            <p className="text-sm text-[var(--muted)]">No users yet.</p>
           ) : (
-            <ul className="mt-4 flex flex-col divide-y divide-[var(--border)]">
+            <ul className="flex flex-col divide-y divide-[var(--border)]">
               {recentUsers.map((user) => (
                 <li
                   key={user.id}
@@ -127,7 +121,7 @@ export default async function AdminOverviewPage() {
               ))}
             </ul>
           )}
-        </Card>
+        </SectionPanel>
       </div>
     </div>
   );

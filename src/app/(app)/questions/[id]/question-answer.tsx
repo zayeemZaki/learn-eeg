@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { submitAnswer, type AnswerResult } from "@/app/actions/attempts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { CheckIcon, CrossIcon } from "@/components/ui/icons";
 
 // The client only ever receives choice id + text. Whether a choice is correct,
 // and the explanation, come back from the server *after* answering — never in
@@ -17,22 +19,6 @@ export interface ClientQuestion {
   stem: string;
   imageUrl: string | null;
   choices: ClientChoice[];
-}
-
-// Tiny inline glyphs so correct/incorrect is never conveyed by color alone.
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" aria-hidden="true">
-      <path d="M3.5 8.5l3 3 6-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function CrossIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" aria-hidden="true">
-      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
 }
 
 /**
@@ -94,18 +80,16 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
     if (!answered) return null;
     if (choiceId === result!.correctChoiceId) {
       return (
-        <span className="ml-3 inline-flex items-center gap-1 text-xs font-semibold text-green-700">
-          <CheckIcon />
+        <Badge variant="subtle" tone="positive" icon={<CheckIcon />} className="ml-3">
           Correct
-        </span>
+        </Badge>
       );
     }
     if (choiceId === selected) {
       return (
-        <span className="ml-3 inline-flex items-center gap-1 text-xs font-semibold text-red-700">
-          <CrossIcon />
+        <Badge variant="subtle" tone="negative" icon={<CrossIcon />} className="ml-3">
           Your answer
-        </span>
+        </Badge>
       );
     }
     return null;

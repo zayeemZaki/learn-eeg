@@ -1,10 +1,12 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { EegImage } from "@/components/ui/eeg-image";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
+import { CheckIcon } from "@/components/ui/icons";
 import { QuestionAnswer, type ClientQuestion } from "./question-answer";
 
 // In Next 15+/16, dynamic params are async and must be awaited.
@@ -49,23 +51,15 @@ export default async function QuestionDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/questions"
-        className="inline-flex w-fit items-center gap-1 text-sm font-medium text-[var(--muted)] outline-none transition hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-      >
-        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden="true">
-          <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Back to questions
-      </Link>
+      <PageHeader
+        title="Question"
+        back={{ href: "/questions", label: "Back to questions" }}
+      />
 
       {previouslyAnswered ? (
-        <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--background)] px-3 py-1 text-xs font-medium text-[var(--muted)]">
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-            <path d="M3.5 8.5l3 3 6-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+        <Badge tone="neutral" icon={<CheckIcon className="h-3.5 w-3.5 shrink-0" />} className="w-fit font-medium normal-case tracking-normal text-[var(--muted)]">
           Previously answered — answer again to practice
-        </span>
+        </Badge>
       ) : null}
 
       <Card>

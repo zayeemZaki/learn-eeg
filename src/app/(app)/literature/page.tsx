@@ -1,5 +1,7 @@
 import { getLatestLiterature } from "@/lib/pubmed";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Revalidate the page at most hourly (independent of the Redis cache layer).
 export const revalidate = 3600;
@@ -9,17 +11,13 @@ export default async function LiteraturePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">
-        Latest Epilepsy Literature
-      </h1>
-      <p className="text-sm text-[var(--muted)]">
-        Recent epilepsy/EEG publications from PubMed.
-      </p>
+      <PageHeader
+        title="Latest Epilepsy Literature"
+        description="Recent epilepsy/EEG publications from PubMed."
+      />
 
       {articles.length === 0 ? (
-        <p className="text-[var(--muted)]">
-          Couldn&apos;t load articles right now. Try again shortly.
-        </p>
+        <EmptyState message="Couldn't load articles right now. Try again shortly." />
       ) : (
         <div className="flex flex-col gap-3">
           {articles.map((article) => (

@@ -29,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-3">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
             <BrandMark size="sm" />
-            <AppNav />
+            <AppNav isAdmin={session.user.role === "ADMIN"} />
           </div>
           <form action={handleSignOut}>
             <Button variant="ghost" type="submit">

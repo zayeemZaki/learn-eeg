@@ -13,9 +13,9 @@ import { AppShell } from "@/components/shell/app-shell";
  * non-admins to /dashboard.
  *
  * Renders the same AppShell as the app, in admin mode — the sidebar exposes the
- * admin section (gated on role inside the shell) and the topbar shows a "Back to
- * app" affordance. Stays a server component (it must await the session); only
- * the shell's drawer/collapse/active-link bits are client islands.
+ * admin section (gated on role inside the shell), which is how admins move
+ * between the app and admin areas. Stays a server component (it must await the
+ * session); only the shell's drawer/collapse/active-link bits are client islands.
  */
 export default async function AdminLayout({
   children,
@@ -35,11 +35,10 @@ export default async function AdminLayout({
     <AppShell
       role={session.user.role}
       userName={session.user.name ?? "Account"}
-      roleLabel="Admin"
-      admin
+      userEmail={session.user.email ?? ""}
       signOut={
         <form action={handleSignOut} className="w-full">
-          <Button variant="ghost" type="submit" className="w-full">
+          <Button variant="ghost" type="submit" role="menuitem" tabIndex={-1} className="w-full">
             Sign out
           </Button>
         </form>

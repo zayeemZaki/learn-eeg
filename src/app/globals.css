@@ -77,6 +77,75 @@ input:-webkit-autofill:active {
 }
 
 /*
+ * Account-menu entrance: a quick fade + scale from the top-right origin. Applied
+ * via `motion-safe:animate-[menuIn_…]`, so prefers-reduced-motion users get an
+ * instant, un-animated open (Tailwind's motion-safe variant drops the class).
+ */
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/*
+ * Layered surface hierarchy for the app shell. Three planes built only from the
+ * existing tokens — no new palette:
+ *   --shell-bg    the deepest plane, a hair below --background, behind everything
+ *   --shell-panel the sidebar/topbar plane, == --surface
+ * The content well sits on --background, the chrome on --surface, and the page
+ * itself on the slightly deeper --shell-bg, so sidebar, content, and cards each
+ * read as a distinct depth without introducing any new colour.
+ */
+:root {
+  --shell-bg: color-mix(in srgb, var(--accent) 4%, var(--background));
+}
+
+/*
+ * The whole signed-in app sits on the deepest plane, with a whisper-faint top
+ * gradient that lifts the chrome off the page — clinical, not decorative. The
+ * gradient is a single accent-tinted wash that fades within the first viewport.
+ */
+.app-surface {
+  background-color: var(--shell-bg);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--accent) 5%, transparent),
+    transparent 480px
+  );
+}
+
+/*
+ * The sign-out form handed into the account menu: make its button fill the row
+ * and match the other menuitems exactly, so identity actions read as one list.
+ * Targets the form's button without the menu needing to know its internals.
+ */
+.account-menu-signout form {
+  width: 100%;
+}
+/* Doubled class for specificity so these win over the ghost Button's own
+   Tailwind hover/border utilities without !important. */
+.account-menu-signout.account-menu-signout button {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+  font-weight: 400;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  background-color: transparent;
+}
+.account-menu-signout.account-menu-signout button:hover {
+  background-color: var(--background);
+}
+
+/*
  * Whisper-faint EEG strip-chart paper behind the hero: a fine cool-gray grid
  * evoking the ruled paper of a paper EEG. Kept very low contrast and masked to
  * fade out vertically so it never competes with the waveform signature.

@@ -16,11 +16,9 @@ interface AppShellProps {
   /** From the session the layout already holds — never re-fetched here. */
   role: Role;
   userName: string;
-  /** Human role label for the user block (e.g. "Resident", "Admin"). */
-  roleLabel: string;
-  /** Whether this is the admin shell (adds the "Back to app" topbar link). */
-  admin?: boolean;
-  /** The server-action sign-out <form>, rendered into the user block. */
+  /** Shown in the account menu identity header. */
+  userEmail: string;
+  /** The server-action sign-out <form>, rendered into the account menu. */
   signOut: ReactNode;
   children: ReactNode;
 }
@@ -46,18 +44,6 @@ const ADMIN: NavSection = {
   ],
 };
 
-// Topbar titles, matched by path prefix (longest wins, resolved in ShellChrome).
-const TITLES = [
-  { prefix: "/dashboard", title: "Dashboard" },
-  { prefix: "/questions", title: "Question Bank" },
-  { prefix: "/atlas", title: "Atlas" },
-  { prefix: "/literature", title: "Literature" },
-  { prefix: "/admin/questions", title: "Questions" },
-  { prefix: "/admin/atlas", title: "Atlas" },
-  { prefix: "/admin/users", title: "Users" },
-  { prefix: "/admin", title: "Admin Overview" },
-];
-
 /**
  * The shell wrapper applied by both the (app) and (admin) layouts. Stays a
  * server component — it takes the role/name the layout already derived from the
@@ -66,27 +52,19 @@ const TITLES = [
  * from the DOM for everyone else, not merely hidden), and hands the interactive
  * pieces to the single ShellChrome client island.
  *
- * The admin shell shows the same primary + admin nav (admins move freely between
- * the app and admin areas) plus a "Back to app" topbar affordance.
+ * Both shells show the same primary nav; admins additionally get the admin
+ * section, which is how they move between the app and admin areas (no separate
+ * topbar affordance). The topbar carries no page nav — the sidebar is the only
+ * navigation.
  */
-export function AppShell({
-  role,
-  userName,
-  roleLabel,
-  admin = false,
-  signOut,
-  children,
-}: AppShellProps) {
+export function AppShell({ role, userName, userEmail, signOut, children }: AppShellProps) {
   const isAdmin = role === "ADMIN";
   const sections = isAdmin ? [PRIMARY, ADMIN] : [PRIMARY];
 
   return (
     <ShellChrome
       sections={sections}
-      user={{ name: userName, roleLabel, isAdmin }}
-      titles={TITLES}
-      fallbackTitle={admin ? "Admin" : "Dashboard"}
-      showBackToApp={admin}
+      user={{ name: userName, email: userEmail }}
       signOut={signOut}
     >
       {children}

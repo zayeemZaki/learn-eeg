@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F7F9FC; /* faint cool near-white — reads like a clinical screen */
+  --surface: #FFFFFF; /* cards + header glass sit a step above the bg */
+  --border: #E3E8F0; /* hairline cool gray */
+  --foreground: #0E1726; /* deep slate ink (echoes the old brand navy) */
+  --muted: #4E5D78; /* secondary text */
+  --accent: #2563EB; /* confident blue; AA-legible white-on-accent (5.17:1) */
+  --accent-2: #4F46E5; /* indigo companion — second stop for the button gradient (white-on: 6.29:1) */
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/*
+ * Tame Chrome/WebKit autofill: by default it paints a pale lavender background
+ * that clashes with the white inputs on the auth forms. The browser won't let
+ * us set `background-color` on an autofilled field directly, so we overpaint it
+ * with an inset box-shadow the size of the control and force the text color.
+ * Applies globally, so login and signup both stay on-theme.
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  box-shadow: 0 0 0 1000px var(--surface) inset;
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+}
+
+/*
+ * Live-monitor sweep for the hero EEG trace. A short dash travels left to right
+ * along the waveform path, mimicking the refresh cursor on a bedside monitor.
+ * The dash length / gap and total path length are set inline on the element.
+ */
+@keyframes eeg-sweep {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+.eeg-sweep {
+  animation: eeg-sweep 4s linear infinite;
+}
+
+/* Honor users who ask for less motion: freeze the sweep entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .eeg-sweep {
+    animation: none;
+  }
+}
+
+/*
+ * Whisper-faint EEG strip-chart paper behind the hero: a fine cool-gray grid
+ * evoking the ruled paper of a paper EEG. Kept very low contrast and masked to
+ * fade out vertically so it never competes with the waveform signature.
+ * Lines are derived from --border (no new color token).
+ */
+.eeg-grid {
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.5;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+}

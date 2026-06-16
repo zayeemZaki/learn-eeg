@@ -1,0 +1,154 @@
+// EEG Practice Center — data model.
+//
+// Design notes:
+//  - User/Account/Session/VerificationToken are the shapes Auth.js's Prisma
+//    adapter expects. We extend User with domain fields (position, institution,
+//    passwordHash) so credentials auth and profile data live in one place.
+//  - Content (Question/Choice/AtlasEntry) is modelled as *seedable* data, kept
+//    separate from app logic. An author/admin pipeline can write to these tables
+//    without touching the rest of the system.
+//  - Attempt is the only write-heavy table (one row per answered question) and
+//    is the source of truth for a user's progress.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Position {
+  MEDICAL_STUDENT
+  RESIDENT
+  ATTENDING_NEUROLOGIST
+}
+
+// Access tier. Additive with a USER default so every existing row remains valid
+// without backfill; the first ADMIN is minted out-of-band (scripts/make-admin.ts).
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AtlasCategory {
+  NORMAL_VARIANT
+  ABNORMAL_VARIANT
+}
+
+// ── Auth + profile ────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  position     Position
+  institution  String
+  role         Role      @default(USER)
+  image        String?
+  // Reserved for future OAuth verification; unused by the credentials flow.
+  emailVerified DateTime?
+
+  accounts Account[]
+  sessions Session[]
+  attempts Attempt[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Auth.js adapter models. Present so OAuth providers can be added later
+// without a migration; the credentials + JWT flow does not populate them.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ── Question bank ───────────────────────────────────────────────────────────
+
+model Question {
+  id          String  @id @default(cuid())
+  stem        String  // the clinical prompt
+  explanation String  // teaching point shown after answering
+  imageUrl    String? // optional EEG trace
+  difficulty  Int     @default(1) // 1=easy ... 3=hard
+
+  choices  Choice[]
+  attempts Attempt[]
+
+  createdAt DateTime @default(now())
+}
+
+model Choice {
+  id         String  @id @default(cuid())
+  questionId String
+  text       String
+  isCorrect  Boolean @default(false)
+
+  question Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attempts Attempt[]
+
+  @@index([questionId])
+}
+
+model Attempt {
+  id               String   @id @default(cuid())
+  userId           String
+  questionId       String
+  selectedChoiceId String
+  isCorrect        Boolean
+  createdAt        DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedChoice Choice   @relation(fields: [selectedChoiceId], references: [id])
+
+  @@index([userId])
+  @@index([questionId])
+}
+
+// ── EEG atlas ─────────────────────────────────────────────────────────────────
+
+model AtlasEntry {
+  id          String        @id @default(cuid())
+  title       String
+  category    AtlasCategory
+  description String
+  imageUrl    String
+
+  createdAt DateTime @default(now())
+
+  @@index([category])
+}

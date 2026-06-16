@@ -1,0 +1,12 @@
+node_modules
+.next
+.env
+.env*.local
+/prisma/*.db
+next-env.d.ts
+
+# Build artifacts
+*.tsbuildinfo
+
+# OS files
+.DS_Store

@@ -8,10 +8,9 @@ import { usePathname } from "next/navigation";
  * sections) so admin links never leak into the signed-in app chrome and vice
  * versa — same active-route treatment, different destinations.
  *
- * Overview, Questions, and Users are live; Atlas routes to a "coming next phase"
- * placeholder. Literature has no admin (it stays the live public PubMed feed),
- * so it's intentionally absent here — no dead link. Order here is the order
- * shown.
+ * Overview, Questions, Atlas, and Users are all live. Literature has no admin
+ * (it stays the live public PubMed feed), so it's intentionally absent here —
+ * no dead link. Order here is the order shown.
  */
 const NAV = [
   { href: "/admin", label: "Overview" },

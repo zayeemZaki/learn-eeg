@@ -37,15 +37,15 @@ export function LoginForm({ resetSuccess = false }: { resetSuccess?: boolean }) 
         <Field label="Password" htmlFor="password">
           <input id="password" name="password" type="password" required className={inputClass()} />
         </Field>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Signing in…" : "Log in"}
+        </Button>
         <div className="-mt-1 text-right">
           <Link href="/forgot-password" className="text-sm text-[var(--accent)]">
             Forgot password?
           </Link>
         </div>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "Signing in…" : "Log in"}
-        </Button>
       </form>
       <p className="text-sm text-[var(--muted)]">
         No account?{" "}

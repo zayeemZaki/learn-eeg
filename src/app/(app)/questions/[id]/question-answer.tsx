@@ -14,11 +14,16 @@ export interface ClientChoice {
   id: string;
   text: string;
 }
+/** A client-safe image — url + alt only (no DB id, no position needed here). */
+export interface ClientImage {
+  url: string;
+  alt: string | null;
+}
 export interface ClientQuestion {
   id: string;
   stem: string;
-  imageUrl: string | null;
   choices: ClientChoice[];
+  images: ClientImage[];
 }
 
 /**

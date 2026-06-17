@@ -136,16 +136,39 @@ model Question {
   id          String           @id @default(cuid())
   stem        String           // the clinical prompt
   explanation String           // teaching point shown after answering
-  imageUrl    String?          // optional EEG trace
+  // DEPRECATED: superseded by the `images` relation (one-to-many QuestionImage).
+  // Kept this pass as a back-compat mirror so existing data survives the migration;
+  // a later pass backfills, stops reading it, then drops the column. New questions
+  // leave this null — author images via QuestionImage instead.
+  imageUrl    String?          // optional EEG trace (deprecated — see `images`)
   difficulty  Int              @default(1) // 1=easy ... 3=hard
   category    QuestionCategory @default(OTHER) // clinical topic; OTHER for legacy rows
 
   choices  Choice[]
+  images   QuestionImage[]
   attempts Attempt[]
 
   createdAt DateTime @default(now())
 
   @@index([category])
+}
+
+// One EEG image attached to a Question. A question can carry several (gallery +
+// lightbox on the answer screen); `position` gives them a stable author-defined
+// order. Cascade-on-delete mirrors Choice — deleting a Question removes its image
+// rows in the same DB cascade (the Blob objects are cleaned up separately by the
+// delete/update actions, since the DB cascade never touches Blob storage).
+model QuestionImage {
+  id         String   @id @default(cuid())
+  questionId String
+  url        String
+  alt        String?  // per-image description for screen readers (gallery + lightbox)
+  position   Int      @default(0) // explicit, stable ordering (0-based)
+  createdAt  DateTime @default(now())
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
 }
 
 model Choice {

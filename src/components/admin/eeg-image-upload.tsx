@@ -1,14 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { upload } from "@vercel/blob/client";
 
 import { EegImage } from "@/components/ui/eeg-image";
 import { Button } from "@/components/ui/button";
 import {
-  ALLOWED_IMAGE_TYPES,
-  MAX_IMAGE_BYTES,
-} from "@/lib/validations/question";
+  ACCEPT,
+  UPLOAD_HINT,
+  UploadValidationError,
+  uploadImageFile,
+  validateImageFile,
+} from "@/lib/upload-eeg-image";
 
 interface EegImageUploadProps {
   /** Current image URL (when editing) or null. Controlled by the parent. */
@@ -18,9 +20,6 @@ interface EegImageUploadProps {
   /** Accessible label / id base so multiple instances don't collide. */
   id?: string;
 }
-
-const ACCEPT = ALLOWED_IMAGE_TYPES.join(",");
-const MAX_MB = Math.round(MAX_IMAGE_BYTES / (1024 * 1024));
 
 /**
  * EEG image picker that uploads directly from the browser to Vercel Blob via the
@@ -53,39 +52,29 @@ export function EegImageUpload({ value, onChange, id = "eeg-image" }: EegImageUp
 
     setError(null);
 
-    if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(file.type)) {
-      setError("Use a PNG, JPEG, or WebP image.");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError(`Image must be ${MAX_MB} MB or smaller.`);
-      return;
+    try {
+      validateImageFile(file);
+    } catch (err) {
+      if (err instanceof UploadValidationError) {
+        setError(err.message);
+        return;
+      }
+      throw err;
     }
 
     setProgress(0);
     try {
-      const result = await upload(file.name, file, {
-        access: "public",
-        handleUploadUrl: "/api/admin/upload",
-        contentType: file.type,
-        onUploadProgress: ({ percentage }) => setProgress(percentage),
-      });
-      onChange(result.url);
+      const url = await uploadImageFile(file, setProgress);
+      onChange(url);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Upload failed";
-      // The token route returns "Unauthorized" for non-admins; make it readable.
-      setError(
-        message === "Unauthorized"
-          ? "You don't have permission to upload images."
-          : message,
-      );
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setProgress(null);
     }
   }
 
   const openPicker = () => inputRef.current?.click();
-  const hint = `PNG, JPEG, or WebP · up to ${MAX_MB} MB.`;
+  const hint = UPLOAD_HINT;
 
   return (
     <div className="flex flex-col gap-2">

@@ -40,7 +40,9 @@ export default async function QuestionsPage({
   const [questions, attemptGroups] = await Promise.all([
     db.question.findMany({
       orderBy: { createdAt: "asc" },
-      select: { id: true, stem: true, imageUrl: true },
+      // Count images (the gallery relation) for the "N EEG images" indicator,
+      // replacing the legacy single-imageUrl boolean.
+      select: { id: true, stem: true, _count: { select: { images: true } } },
     }),
     userId
       ? db.attempt.groupBy({
@@ -60,7 +62,9 @@ export default async function QuestionsPage({
   }
 
   const decorated = questions.map((q) => ({
-    ...q,
+    id: q.id,
+    stem: q.stem,
+    imageCount: q._count.images,
     answered: answeredById.has(q.id),
     anyCorrect: answeredById.get(q.id) ?? null,
   }));
@@ -116,9 +120,9 @@ export default async function QuestionsPage({
                   <p className="line-clamp-2 text-sm font-medium leading-relaxed text-[var(--foreground)]">
                     {q.stem}
                   </p>
-                  {q.imageUrl ? (
+                  {q.imageCount > 0 ? (
                     <Badge variant="subtle" tone="neutral" icon={<ImageIcon />}>
-                      Has EEG image
+                      {q.imageCount} EEG {q.imageCount === 1 ? "image" : "images"}
                     </Badge>
                   ) : null}
                 </div>

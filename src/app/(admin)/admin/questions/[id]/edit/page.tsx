@@ -26,12 +26,16 @@ export default async function EditQuestionPage({
       id: true,
       stem: true,
       explanation: true,
-      imageUrl: true,
       difficulty: true,
       category: true,
       choices: {
         select: { id: true, text: true, isCorrect: true },
         orderBy: { id: "asc" },
+      },
+      // Ordered gallery images, prefilled into the multi-image uploader.
+      images: {
+        select: { url: true, alt: true },
+        orderBy: { position: "asc" },
       },
     },
   });

@@ -60,6 +60,15 @@ export function ChevronLeftIcon({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
+/** Right chevron — "next" in the image lightbox (mirror of ChevronLeftIcon). */
+export function ChevronRightIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
+      <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** Trash bin — destructive delete affordance (admin edit "Danger zone"). */
 export function TrashIcon({ className = "h-4 w-4 shrink-0" }: IconProps) {
   return (

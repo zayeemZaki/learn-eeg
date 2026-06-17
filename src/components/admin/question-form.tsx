@@ -6,7 +6,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Field, inputClass } from "@/components/ui/field";
 import { SectionPanel } from "@/components/ui/section-panel";
-import { EegImageUpload } from "@/components/admin/eeg-image-upload";
+import {
+  EegImageGalleryUpload,
+  type GalleryImage,
+} from "@/components/admin/eeg-image-gallery-upload";
 import {
   createQuestion,
   updateQuestion,
@@ -36,10 +39,11 @@ interface QuestionFormProps {
     id: string;
     stem: string;
     explanation: string;
-    imageUrl: string | null;
     difficulty: number;
     category: QuestionCategory;
     choices: { id: string; text: string; isCorrect: boolean }[];
+    // Ordered images for the gallery (already sorted by position by the loader).
+    images: { url: string; alt: string | null }[];
   };
 }
 
@@ -66,7 +70,11 @@ export function QuestionForm({ question }: QuestionFormProps) {
 
   const [stem, setStem] = useState(question?.stem ?? "");
   const [explanation, setExplanation] = useState(question?.explanation ?? "");
-  const [imageUrl, setImageUrl] = useState<string | null>(question?.imageUrl ?? null);
+  // Ordered gallery images. Prefilled from the question (already position-sorted);
+  // alt normalised to "" for the controlled input.
+  const [images, setImages] = useState<GalleryImage[]>(
+    question?.images.map((img) => ({ url: img.url, alt: img.alt ?? "" })) ?? [],
+  );
   const [difficulty, setDifficulty] = useState(question?.difficulty ?? MIN_DIFFICULTY);
   const [category, setCategory] = useState<QuestionCategory>(
     question?.category ?? QuestionCategory.OTHER,
@@ -100,10 +108,12 @@ export function QuestionForm({ question }: QuestionFormProps) {
     const payload: QuestionInput = {
       stem,
       explanation,
-      imageUrl,
+      // imageUrl is deprecated and no longer sent — images go through `images`.
       difficulty,
       category,
       choices: choices.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })),
+      // Trim each alt; the schema normalises "" → null. Array order is gallery order.
+      images: images.map((img) => ({ url: img.url, alt: img.alt.trim() || null })),
     };
 
     // Client-side parse for instant feedback; the action re-validates regardless.
@@ -155,8 +165,8 @@ export function QuestionForm({ question }: QuestionFormProps) {
         </div>
       </SectionPanel>
 
-      <SectionPanel title="Image">
-        <EegImageUpload value={imageUrl} onChange={setImageUrl} />
+      <SectionPanel title="Images">
+        <EegImageGalleryUpload value={images} onChange={setImages} />
       </SectionPanel>
 
       <SectionPanel title="Answer options" aside="Select the one correct answer">

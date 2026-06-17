@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 
 import { requireAdmin } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
+import { deleteBlobs } from "@/lib/blob-cleanup";
 import { questionSchema, type QuestionInput } from "@/lib/validations/question";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -35,17 +36,26 @@ export async function createQuestion(raw: QuestionInput): Promise<ActionResult> 
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { stem, explanation, imageUrl, difficulty, category, choices } = parsed.data;
+  const { stem, explanation, difficulty, category, choices, images } = parsed.data;
 
   await db.question.create({
     data: {
       stem,
       explanation,
-      imageUrl,
+      // imageUrl is deprecated — new questions leave it null and use `images`.
       difficulty,
       category,
       choices: {
         create: choices.map((c) => ({ text: c.text, isCorrect: c.isCorrect })),
+      },
+      // Mirror the choices nested-create; the array index becomes the stable
+      // gallery position.
+      images: {
+        create: images.map((img, i) => ({
+          url: img.url,
+          alt: img.alt,
+          position: i,
+        })),
       },
     },
   });
@@ -55,7 +65,7 @@ export async function createQuestion(raw: QuestionInput): Promise<ActionResult> 
 }
 
 /**
- * Update a question's scalar fields and reconcile its choices.
+ * Update a question's scalar fields and reconcile its choices AND its images.
  *
  * Choices are diffed in place, never delete-and-recreated — recreating would
  * orphan every Attempt that points at an existing Choice (Attempt.selectedChoiceId
@@ -64,8 +74,18 @@ export async function createQuestion(raw: QuestionInput): Promise<ActionResult> 
  *   - choices without an id are created,
  *   - choices removed in the form are deleted ONLY if they have zero attempts;
  *     a removed choice that has been answered is rejected with a friendly error.
- * The whole reconciliation runs in one transaction so a mid-way failure (e.g. a
- * rejected deletion) leaves nothing half-applied.
+ *
+ * Images are reconciled by URL (the form sends no ids; each Blob URL is unique
+ * because the upload route adds a random suffix, so URL is a safe identity key):
+ *   - an image whose URL still exists is updated in place (alt + new position),
+ *   - a URL not previously present is created,
+ *   - a previously-present URL now absent is deleted, and its Blob object is
+ *     cleaned up AFTER the transaction commits (see the deleteBlobs call).
+ * Images have no Attempt FK, so removal is always allowed (unlike choices).
+ *
+ * The whole reconciliation runs in one transaction so a mid-way failure leaves
+ * nothing half-applied. Blob cleanup runs only after that commit and never fails
+ * the request.
  */
 export async function updateQuestion(
   id: string,
@@ -77,11 +97,15 @@ export async function updateQuestion(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { stem, explanation, imageUrl, difficulty, category, choices } = parsed.data;
+  const { stem, explanation, difficulty, category, choices, images } = parsed.data;
 
   const existing = await db.question.findUnique({
     where: { id },
-    select: { id: true, choices: { select: { id: true } } },
+    select: {
+      id: true,
+      choices: { select: { id: true } },
+      images: { select: { id: true, url: true } },
+    },
   });
   if (!existing) return { ok: false, error: "Question not found" };
 
@@ -90,6 +114,15 @@ export async function updateQuestion(
     choices.map((c) => c.id).filter((cid): cid is string => Boolean(cid)),
   );
   const removedIds = [...existingIds].filter((cid) => !keptIds.has(cid));
+
+  // ── Image reconcile plan (by URL). ──────────────────────────────────────────
+  // Map URL → existing row id so kept images can be updated in place.
+  const existingImageIdByUrl = new Map(existing.images.map((img) => [img.url, img.id]));
+  const submittedUrls = new Set(images.map((img) => img.url));
+  // Rows whose URL is no longer submitted → delete (and clean up their Blobs).
+  const removedImages = existing.images.filter((img) => !submittedUrls.has(img.url));
+  const removedImageIds = removedImages.map((img) => img.id);
+  const removedImageUrls = removedImages.map((img) => img.url);
 
   // Footgun guard: a removed choice that has attempts can't be deleted (FK has
   // no cascade), and silently keeping it would be surprising. Reject with a
@@ -112,7 +145,9 @@ export async function updateQuestion(
     await db.$transaction([
       db.question.update({
         where: { id },
-        data: { stem, explanation, imageUrl, difficulty, category },
+        // imageUrl is deprecated and intentionally not written here (kept as-is
+        // on legacy rows until a later pass drops the column).
+        data: { stem, explanation, difficulty, category },
       }),
       // Delete first (only the safe-to-remove ids verified above).
       ...(removedIds.length > 0
@@ -135,6 +170,25 @@ export async function updateQuestion(
             data: { questionId: id, text: c.text, isCorrect: c.isCorrect },
           }),
         ),
+
+      // ── Images, reconciled by URL. ──────────────────────────────────────────
+      // Delete rows whose URL is gone (Blob cleanup happens after commit).
+      ...(removedImageIds.length > 0
+        ? [db.questionImage.deleteMany({ where: { id: { in: removedImageIds } } })]
+        : []),
+      // For each submitted image, update in place if its URL already exists
+      // (refresh alt + position), else create it. Index = stable gallery order.
+      ...images.map((img, i) => {
+        const existingId = existingImageIdByUrl.get(img.url);
+        return existingId
+          ? db.questionImage.update({
+              where: { id: existingId },
+              data: { alt: img.alt, position: i },
+            })
+          : db.questionImage.create({
+              data: { questionId: id, url: img.url, alt: img.alt, position: i },
+            });
+      }),
     ]);
   } catch (error) {
     // Log server-side for diagnostics; keep the client message generic (never
@@ -143,19 +197,38 @@ export async function updateQuestion(
     return { ok: false, error: "Could not save changes. Please try again." };
   }
 
+  // The DB is now the source of truth. Clean up Blob objects for removed images
+  // AFTER the commit; deleteBlobs never throws, so a Blob failure can't fail this
+  // save (a leaked object is recoverable; a failed user action is worse).
+  await deleteBlobs(removedImageUrls);
+
   revalidateQuestionViews();
   redirect("/admin/questions");
 }
 
 /**
- * Delete a question. Deleting the Question cascades its Choices AND its Attempts
- * (Attempt→Question is onDelete: Cascade), so the answered-choice FK is removed
- * as part of the same cascade — no dangling reference, no FK error.
+ * Delete a question. Deleting the Question cascades its Choices, its Attempts, AND
+ * its QuestionImage rows (all onDelete: Cascade), so the answered-choice FK is
+ * removed as part of the same cascade — no dangling reference, no FK error.
+ *
+ * The DB cascade does NOT touch Blob storage, so we collect this question's image
+ * URLs BEFORE deleting and clean up those Blob objects AFTER the delete commits.
+ * deleteBlobs never throws, so a Blob failure can't fail the delete (the row is
+ * already gone; a leaked object is recoverable).
  */
 export async function deleteQuestion(id: string): Promise<ActionResult> {
   await requireAdmin();
 
   if (!id) return { ok: false, error: "Missing question id" };
+
+  // Capture image URLs first — once the row is deleted (and its images cascaded
+  // away) we'd have no way to find them.
+  const imageUrls = (
+    await db.questionImage.findMany({
+      where: { questionId: id },
+      select: { url: true },
+    })
+  ).map((img) => img.url);
 
   try {
     await db.question.delete({ where: { id } });
@@ -163,6 +236,9 @@ export async function deleteQuestion(id: string): Promise<ActionResult> {
     console.error("deleteQuestion failed:", error);
     return { ok: false, error: "Could not delete the question." };
   }
+
+  // After-commit Blob cleanup (best-effort, never fails the request).
+  await deleteBlobs(imageUrls);
 
   revalidateQuestionViews();
   return { ok: true };

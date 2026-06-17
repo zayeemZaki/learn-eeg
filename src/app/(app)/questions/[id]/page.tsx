@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";
-import { EegImage } from "@/components/ui/eeg-image";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { CheckIcon } from "@/components/ui/icons";
 import { QuestionAnswer, type ClientQuestion } from "./question-answer";
+import { QuestionGallery } from "./question-gallery";
 
 // In Next 15+/16, dynamic params are async and must be awaited.
 export default async function QuestionDetailPage({
@@ -20,13 +20,18 @@ export default async function QuestionDetailPage({
   // SECURITY BOUNDARY: choices are selected as { id, text } ONLY. `isCorrect`
   // is never read here, so it can never be serialized into the client props —
   // correctness comes back exclusively from submitAnswer after the user answers.
+  // Images are selected ALONGSIDE choices (a separate relation); adding them does
+  // NOT change the choices select, so the boundary is unaffected.
   const question = await db.question.findUnique({
     where: { id },
     select: {
       id: true,
       stem: true,
-      imageUrl: true,
       choices: { select: { id: true, text: true } },
+      images: {
+        select: { url: true, alt: true },
+        orderBy: { position: "asc" },
+      },
     },
   });
   if (!question) notFound();
@@ -42,11 +47,13 @@ export default async function QuestionDetailPage({
     : false;
 
   // Explicit client shape — guarantees no extra fields leak across the boundary.
+  // Every field is named explicitly (never a spread), so isCorrect / explanation
+  // can't ride along; images carry only { url, alt }.
   const clientQuestion: ClientQuestion = {
     id: question.id,
     stem: question.stem,
-    imageUrl: question.imageUrl,
     choices: question.choices,
+    images: question.images,
   };
 
   return (
@@ -64,9 +71,8 @@ export default async function QuestionDetailPage({
 
       <Card>
         <p className="text-base font-medium leading-relaxed">{clientQuestion.stem}</p>
-        {clientQuestion.imageUrl ? (
-          <EegImage src={clientQuestion.imageUrl} alt="EEG trace for this question" className="mt-4" />
-        ) : null}
+        {/* Gallery + click-to-zoom lightbox; renders nothing when there are no images. */}
+        <QuestionGallery images={clientQuestion.images} />
       </Card>
 
       <QuestionAnswer question={clientQuestion} />

@@ -14,7 +14,7 @@ export const metadata = { title: "Questions" };
 interface QuestionRow {
   id: string;
   stem: string;
-  hasImage: boolean;
+  imageCount: number;
   choices: number;
   difficulty: number;
   attempts: number;
@@ -39,9 +39,9 @@ export default async function AdminQuestionsPage() {
       select: {
         id: true,
         stem: true,
-        imageUrl: true,
         difficulty: true,
-        _count: { select: { choices: true } },
+        // Count both relations: choices (unchanged) and images (gallery).
+        _count: { select: { choices: true, images: true } },
       },
     }),
     db.attempt.groupBy({ by: ["questionId"], _count: { _all: true } }),
@@ -54,21 +54,24 @@ export default async function AdminQuestionsPage() {
   const rows: QuestionRow[] = questions.map((q) => ({
     id: q.id,
     stem: q.stem,
-    hasImage: Boolean(q.imageUrl),
+    imageCount: q._count.images,
     choices: q._count.choices,
     difficulty: q.difficulty,
     attempts: attemptsByQuestion.get(q.id) ?? 0,
   }));
 
-  // Shared "has image" cell — an icon marker (with an SR label) or an em dash.
+  // Shared "images" cell — an icon + count (with an SR label) or an em dash.
   const imageCell = (q: QuestionRow) =>
-    q.hasImage ? (
+    q.imageCount > 0 ? (
       <span className="inline-flex items-center gap-1 text-[var(--muted)]">
         <ImageIcon />
-        <span className="sr-only">Has image</span>
+        <span className="tabular-nums">{q.imageCount}</span>
+        <span className="sr-only">
+          {q.imageCount === 1 ? "image" : "images"}
+        </span>
       </span>
     ) : (
-      <span className="text-[var(--muted)]" aria-label="No image">
+      <span className="text-[var(--muted)]" aria-label="No images">
         —
       </span>
     );
@@ -82,7 +85,7 @@ export default async function AdminQuestionsPage() {
       ),
     },
     { header: "Options", align: "right", cell: (q) => <span className="tabular-nums">{q.choices}</span> },
-    { header: "Image", align: "center", cell: imageCell },
+    { header: "Images", align: "center", cell: imageCell },
     { header: "Attempts", align: "right", cell: (q) => <span className="tabular-nums">{q.attempts}</span> },
     { header: "Difficulty", align: "right", cell: (q) => <span className="tabular-nums">{q.difficulty}</span> },
   ];
@@ -122,9 +125,9 @@ export default async function AdminQuestionsPage() {
                   <span className="tabular-nums">{q.choices} options</span>
                   <span className="tabular-nums">{q.attempts} attempts</span>
                   <span className="tabular-nums">Difficulty {q.difficulty}</span>
-                  {q.hasImage ? (
+                  {q.imageCount > 0 ? (
                     <Badge variant="subtle" tone="neutral" icon={<ImageIcon />}>
-                      Image
+                      {q.imageCount} {q.imageCount === 1 ? "image" : "images"}
                     </Badge>
                   ) : null}
                 </div>

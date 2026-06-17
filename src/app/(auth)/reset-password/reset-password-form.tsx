@@ -81,7 +81,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
             className={inputClass()}
           />
         </Field>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
         <Button type="submit" disabled={isPending}>
           {isPending ? "Updating…" : "Update password"}
         </Button>

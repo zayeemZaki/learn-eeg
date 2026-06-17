@@ -85,7 +85,9 @@ export async function updateAtlasEntry(
       where: { id },
       data: { title, category, description, imageUrl },
     });
-  } catch {
+  } catch (error) {
+    // Log server-side for diagnostics; keep the client message generic.
+    console.error("updateAtlasEntry failed:", error);
     return { ok: false, error: "Could not save changes. Please try again." };
   }
 
@@ -104,7 +106,8 @@ export async function deleteAtlasEntry(id: string): Promise<ActionResult> {
 
   try {
     await db.atlasEntry.delete({ where: { id } });
-  } catch {
+  } catch (error) {
+    console.error("deleteAtlasEntry failed:", error);
     return { ok: false, error: "Could not delete the atlas entry." };
   }
 

@@ -136,7 +136,10 @@ export async function updateQuestion(
           }),
         ),
     ]);
-  } catch {
+  } catch (error) {
+    // Log server-side for diagnostics; keep the client message generic (never
+    // leak DB/Prisma details to the user).
+    console.error("updateQuestion failed:", error);
     return { ok: false, error: "Could not save changes. Please try again." };
   }
 
@@ -156,7 +159,8 @@ export async function deleteQuestion(id: string): Promise<ActionResult> {
 
   try {
     await db.question.delete({ where: { id } });
-  } catch {
+  } catch (error) {
+    console.error("deleteQuestion failed:", error);
     return { ok: false, error: "Could not delete the question." };
   }
 

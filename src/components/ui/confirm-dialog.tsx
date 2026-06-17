@@ -139,7 +139,7 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="border-transparent bg-red-600 from-red-600 to-red-700 text-white shadow-sm shadow-[color-mix(in_srgb,#dc2626_35%,transparent)] hover:bg-red-700 hover:shadow-md focus-visible:ring-red-600"
+            className="border-transparent bg-danger from-danger to-[color-mix(in_srgb,var(--danger)_88%,black)] text-white shadow-sm shadow-[color-mix(in_srgb,var(--danger)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--danger)_88%,black)] hover:shadow-md focus-visible:ring-danger"
           >
             {pending ? "Deleting…" : confirmLabel}
           </Button>

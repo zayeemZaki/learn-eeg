@@ -8,6 +8,56 @@
   --muted: #4E5D78; /* secondary text */
   --accent: #2563EB; /* confident blue; AA-legible white-on-accent (5.17:1) */
   --accent-2: #4F46E5; /* indigo companion — second stop for the button gradient (white-on: 6.29:1) */
+
+  /*
+   * Semantic state colours. Each is AA-legible on white as text, paired with a
+   * `-soft` 10% tint on --surface for fills (faint enough to sit under text, strong
+   * enough to read as a coloured plane — the readable strength the old 4% danger
+   * zones lacked). Status is NEVER conveyed by colour alone in the UI; these only
+   * back the icon+label markers that already carry the meaning.
+   */
+  --success: #15803D; /* green-700-ish; white-on text use, AA on surface */
+  --success-soft: color-mix(in srgb, #15803D 10%, var(--surface));
+  --warning: #B45309; /* amber-700-ish; reserved for future warning states */
+  --warning-soft: color-mix(in srgb, #B45309 10%, var(--surface));
+  --danger: #DC2626; /* red-600; destructive + error */
+  --danger-soft: color-mix(in srgb, #DC2626 10%, var(--surface));
+
+  /* A faint accent plane for soft fills (matches the -soft family). */
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--surface));
+
+  /* Radius scale — defined now for later passes; existing rounded-* utilities are
+     left untouched this pass. */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-full: 9999px;
+}
+
+/*
+ * Expose the core + semantic colours to Tailwind v4 so real utilities generate
+ * (bg-danger, text-danger, border-danger, bg-danger-soft, and the success /
+ * warning / accent-soft equivalents). The @theme --color-* names map straight to
+ * the :root vars, so the single source of truth stays in :root and the utilities
+ * inherit any future re-theming for free. Only the semantic + soft colours are
+ * mapped here; the existing accent/border/surface arbitrary-value strings across
+ * the app are intentionally left as-is this pass.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
 }
 
 html {

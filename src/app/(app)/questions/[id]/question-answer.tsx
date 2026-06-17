@@ -59,18 +59,18 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
   }
 
   // Visual state per choice. Unanswered: neutral, accent border on hover.
-  // Answered: the correct choice goes green, the picked-wrong one red, the rest
-  // dim. Color is always paired with an icon+label marker (choiceMarker), so it
-  // is never the sole signal.
+  // Answered: the correct choice takes the success tone, the picked-wrong one the
+  // danger tone, the rest dim. Color is always paired with an icon+label marker
+  // (choiceMarker), so it is never the sole signal.
   function choiceStyle(choiceId: string): string {
     if (!answered) {
       return "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--accent)] motion-safe:hover:-translate-y-0.5";
     }
     if (choiceId === result!.correctChoiceId) {
-      return "border-green-600 bg-green-500/10 text-green-800";
+      return "border-success bg-success-soft text-success";
     }
     if (choiceId === selected) {
-      return "border-red-600 bg-red-500/10 text-red-800";
+      return "border-danger bg-danger-soft text-danger";
     }
     return "border-[var(--border)] opacity-60";
   }
@@ -117,7 +117,7 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
       </div>
 
       {error ? (
-        <p className="inline-flex items-center gap-2 text-sm font-medium text-red-700">
+        <p className="inline-flex items-center gap-2 text-sm font-medium text-danger">
           <CrossIcon />
           {error}
         </p>
@@ -127,13 +127,13 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
         <Card
           className={
             result!.isCorrect
-              ? "border-green-600/40 bg-green-500/5"
-              : "border-red-600/40 bg-red-500/5"
+              ? "border-success/40 bg-success-soft"
+              : "border-danger/40 bg-danger-soft"
           }
         >
           <p
             className={`inline-flex items-center gap-2 font-semibold ${
-              result!.isCorrect ? "text-green-700" : "text-red-700"
+              result!.isCorrect ? "text-success" : "text-danger"
             }`}
           >
             {result!.isCorrect ? <CheckIcon /> : <CrossIcon />}

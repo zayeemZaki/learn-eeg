@@ -12,8 +12,8 @@ import { type ReactNode } from "react";
  * while `subtle` is a borderless icon+label marker for the inline correct /
  * incorrect hints that were previously bare coloured spans. Tokens only — the
  * accent tone derives from --accent via color-mix, no new colour is introduced;
- * the semantic green/red tones reuse the same Tailwind utilities the original
- * answer UI used, so correctness styling reads identically.
+ * the semantic positive/negative tones map to the --success / --danger tokens, so
+ * correctness styling stays consistent with every other state colour in the app.
  */
 type Tone = "accent" | "neutral" | "positive" | "negative";
 type Variant = "solid" | "subtle";
@@ -31,22 +31,22 @@ interface BadgeProps {
 
 // Filled pills: a hairline border, a faint fill, and the tone's text colour.
 // The accent pill reproduces the previous CategoryBadge / RoleBadge markup
-// exactly (color-mix off --accent); positive/negative reuse the answer UI's
-// green/red so semantics never drift.
+// exactly (color-mix off --accent); positive/negative use the --success /
+// --danger tokens (base text + -soft fill) so semantics never drift.
 const solidTone: Record<Tone, string> = {
   accent:
     "border-[color-mix(in_srgb,var(--accent)_40%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)]",
   neutral: "border-[var(--border)] bg-[var(--background)] text-[var(--muted)]",
-  positive: "border-green-600/40 bg-green-500/10 text-green-700",
-  negative: "border-red-600/40 bg-red-500/10 text-red-700",
+  positive: "border-success/40 bg-success-soft text-success",
+  negative: "border-danger/40 bg-danger-soft text-danger",
 };
 
 // Borderless inline markers (the old "✓ Correct" / "✗ Incorrect" hint spans).
 const subtleTone: Record<Tone, string> = {
   accent: "text-[var(--accent)]",
   neutral: "text-[var(--muted)]",
-  positive: "text-green-700",
-  negative: "text-red-700",
+  positive: "text-success",
+  negative: "text-danger",
 };
 
 export function Badge({

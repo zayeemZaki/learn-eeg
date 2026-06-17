@@ -41,13 +41,13 @@ export function DeleteQuestionButton({ id }: { id: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-lg border border-[color-mix(in_srgb,#dc2626_30%,var(--border))] px-3 py-2 text-sm font-medium text-red-600 outline-none transition hover:bg-[color-mix(in_srgb,#dc2626_8%,transparent)] focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
+        className="inline-flex items-center gap-2 rounded-lg border border-[color-mix(in_srgb,var(--danger)_30%,var(--border))] px-3 py-2 text-sm font-medium text-danger outline-none transition hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
         aria-label="Delete question"
       >
         <TrashIcon />
         Delete question
       </button>
-      {error ? <span className="text-xs text-red-600">{error}</span> : null}
+      {error ? <span role="alert" className="text-xs text-danger">{error}</span> : null}
 
       <ConfirmDialog
         open={open}

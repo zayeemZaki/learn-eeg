@@ -123,7 +123,9 @@ export async function requestPasswordReset(raw: unknown): Promise<ActionResult> 
 /**
  * Step 2 — confirm a reset. Validates the token (exists, unexpired, unused),
  * sets the new password, marks the token used, and clears the user's other
- * tokens. Errors are deliberately generic about token state.
+ * tokens. The consume is ATOMIC (a conditional `usedAt: null` update inside an
+ * interactive transaction), so a token can be redeemed at most once even under
+ * concurrent submission. Errors are deliberately generic about token state.
  */
 export async function resetPassword(raw: unknown): Promise<ActionResult> {
   const parsed = resetPasswordSchema.safeParse(raw);
@@ -151,21 +153,42 @@ export async function resetPassword(raw: unknown): Promise<ActionResult> {
 
   const passwordHash = await hashPassword(newPassword);
 
-  // Set the password, mark this token used, and defensively delete the user's
-  // other tokens — all atomically so a partial write can't leave a usable token.
-  await db.$transaction([
-    db.user.update({
-      where: { id: record.userId },
-      data: { passwordHash },
-    }),
-    db.passwordResetToken.update({
-      where: { id: record.id },
-      data: { usedAt: new Date() },
-    }),
-    db.passwordResetToken.deleteMany({
-      where: { userId: record.userId, id: { not: record.id } },
-    }),
-  ]);
+  // ATOMIC single-use consume. The read above is only a fast pre-check; the real
+  // guard is the conditional update inside this interactive transaction:
+  // `updateMany({ where: { id, usedAt: null }})` marks the token used ONLY if it
+  // is still unused at write time. Two concurrent requests carrying the same
+  // valid token therefore can't both succeed — exactly one sees count === 1; the
+  // loser sees count === 0 and we throw to ROLL BACK the whole transaction, so
+  // the password set never lands for the loser. (An interactive transaction is
+  // required here — a plain statement array would commit the password update
+  // unconditionally, regardless of the consume's count.)
+  const TOKEN_ALREADY_USED = Symbol("token-already-used");
+  try {
+    await db.$transaction(async (tx) => {
+      const consumed = await tx.passwordResetToken.updateMany({
+        where: { id: record.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      if (consumed.count === 0) {
+        // Lost the race: token was consumed between the pre-check and here.
+        throw TOKEN_ALREADY_USED;
+      }
+      await tx.user.update({
+        where: { id: record.userId },
+        data: { passwordHash },
+      });
+      // Defensively clear the user's other tokens in the same transaction.
+      await tx.passwordResetToken.deleteMany({
+        where: { userId: record.userId, id: { not: record.id } },
+      });
+    });
+  } catch (error) {
+    if (error === TOKEN_ALREADY_USED) {
+      // Same generic failure the flow already uses — no new enumeration signal.
+      return { ok: false, error: invalidMessage };
+    }
+    throw error;
+  }
 
   return { ok: true };
 }

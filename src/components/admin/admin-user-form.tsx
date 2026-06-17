@@ -140,7 +140,7 @@ export function AdminUserForm({ user, isSelf }: AdminUserFormProps) {
       </Field>
 
       {error ? (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       ) : null}

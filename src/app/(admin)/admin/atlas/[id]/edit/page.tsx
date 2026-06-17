@@ -44,7 +44,7 @@ export default async function EditAtlasEntryPage({
           list. The deleteAtlasEntry action itself is unchanged. */}
       <section
         aria-label="Danger zone"
-        className="rounded-xl border border-[color-mix(in_srgb,#dc2626_25%,var(--border))] bg-[color-mix(in_srgb,#dc2626_4%,var(--surface))] p-4"
+        className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_25%,var(--border))] bg-danger-soft p-4"
       >
         <h2 className="text-sm font-semibold text-[var(--foreground)]">Danger zone</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">

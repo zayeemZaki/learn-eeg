@@ -159,7 +159,7 @@ export function EegImageUpload({ value, onChange, id = "eeg-image" }: EegImageUp
         </div>
       )}
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
     </div>
   );
 }

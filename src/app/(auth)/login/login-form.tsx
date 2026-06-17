@@ -26,7 +26,7 @@ export function LoginForm({ resetSuccess = false }: { resetSuccess?: boolean }) 
     <div className="flex flex-col gap-5">
       <h1 className="text-2xl font-bold">Welcome back</h1>
       {resetSuccess ? (
-        <p className="text-sm text-green-600">
+        <p role="status" className="text-sm text-success">
           Your password has been updated. Log in with your new password.
         </p>
       ) : null}
@@ -37,7 +37,7 @@ export function LoginForm({ resetSuccess = false }: { resetSuccess?: boolean }) 
         <Field label="Password" htmlFor="password">
           <input id="password" name="password" type="password" required className={inputClass()} />
         </Field>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
         <Button type="submit" disabled={isPending}>
           {isPending ? "Signing in…" : "Log in"}
         </Button>

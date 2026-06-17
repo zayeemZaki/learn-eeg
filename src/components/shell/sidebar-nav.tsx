@@ -23,8 +23,10 @@ interface SidebarNavProps {
  * keyboard focus ring.
  *
  * When `collapsed`, labels and section headings are hidden and each link
- * centres its icon with the label surfaced via `title`/`aria-label`, so the rail
- * stays usable and keyboard-navigable at icon width.
+ * centres its icon. The label is still the accessible name (`aria-label`) and
+ * is surfaced as a real tooltip that appears on BOTH hover and keyboard focus
+ * (not the mouse-only `title` attribute), so the rail stays usable and
+ * keyboard-navigable at icon width.
  */
 export function SidebarNav({ sections, collapsed, onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
@@ -52,7 +54,6 @@ export function SidebarNav({ sections, collapsed, onNavigate }: SidebarNavProps)
                 href={item.href}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
-                title={collapsed ? item.label : undefined}
                 aria-label={collapsed ? item.label : undefined}
                 className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)] ${
                   collapsed ? "justify-center" : ""
@@ -72,6 +73,19 @@ export function SidebarNav({ sections, collapsed, onNavigate }: SidebarNavProps)
                 ) : null}
                 <span className="shrink-0">{item.icon}</span>
                 {!collapsed ? <span className="truncate">{item.label}</span> : null}
+
+                {/* Rail tooltip: shown on hover AND keyboard focus (the mouse-only
+                    `title` attribute would skip keyboard users). aria-hidden
+                    because the link already carries the label as its aria-label. */}
+                {collapsed ? (
+                  <span
+                    role="tooltip"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 scale-95 whitespace-nowrap rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs font-medium text-[var(--foreground)] opacity-0 shadow-md transition group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100"
+                  >
+                    {item.label}
+                  </span>
+                ) : null}
               </Link>
             );
           })}

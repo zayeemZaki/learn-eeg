@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Field, inputClass } from "@/components/ui/field";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { EegImageUpload } from "@/components/admin/eeg-image-upload";
 import {
   createQuestion,
@@ -122,118 +123,131 @@ export function QuestionForm({ question }: QuestionFormProps) {
   }
 
   return (
+    // Grouped sections instead of one long stack of equal full-width fields:
+    // Content (the teaching text), the compact Image control (secondary), the
+    // Answer options block, and Meta (difficulty + category, side by side).
     <form action={onSubmit} className="flex flex-col gap-6">
-      <Field label="Stem" htmlFor="stem">
-        <textarea
-          id="stem"
-          required
-          rows={3}
-          value={stem}
-          onChange={(e) => setStem(e.target.value)}
-          className={inputClass("resize-y")}
-          placeholder="The clinical prompt shown to the user."
-        />
-      </Field>
-
-      <Field label="Explanation" htmlFor="explanation">
-        <textarea
-          id="explanation"
-          required
-          rows={3}
-          value={explanation}
-          onChange={(e) => setExplanation(e.target.value)}
-          className={inputClass("resize-y")}
-          placeholder="The teaching point shown after answering."
-        />
-      </Field>
-
-      <EegImageUpload value={imageUrl} onChange={setImageUrl} />
-
-      <Field label="Difficulty" htmlFor="difficulty">
-        <select
-          id="difficulty"
-          value={difficulty}
-          onChange={(e) => setDifficulty(Number(e.target.value))}
-          className={inputClass()}
-        >
-          {Array.from(
-            { length: MAX_DIFFICULTY - MIN_DIFFICULTY + 1 },
-            (_, i) => MIN_DIFFICULTY + i,
-          ).map((level) => (
-            <option key={level} value={level}>
-              {level} — {DIFFICULTY_LABELS[level]}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      <Field label="Category" htmlFor="category">
-        <select
-          id="category"
-          value={category}
-          onChange={(e) => setCategory(e.target.value as QuestionCategory)}
-          className={inputClass()}
-        >
-          {Object.values(QuestionCategory).map((value) => (
-            <option key={value} value={value}>
-              {QUESTION_CATEGORY_LABELS[value]}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-sm font-medium text-[var(--muted)]">
-          Options — select the one correct answer
-        </legend>
-
-        {choices.map((choice, index) => (
-          <div key={choice.key} className="flex items-center gap-3">
-            {/* Radio enforces exactly-one-correct in the UI; label text makes the
-                state non-color-only and gives the radio a large hit target. */}
-            <label className="inline-flex shrink-0 items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name={correctRadioName}
-                checked={choice.isCorrect}
-                onChange={() => setCorrect(choice.key)}
-                className="h-4 w-4 accent-[var(--accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-                aria-label={`Mark option ${index + 1} as correct`}
-              />
-              <span className="text-[var(--muted)]">Correct</span>
-            </label>
-
-            <input
-              type="text"
-              value={choice.text}
-              onChange={(e) => setChoiceText(choice.key, e.target.value)}
-              className={inputClass()}
-              placeholder={`Option ${index + 1}`}
-              aria-label={`Option ${index + 1} text`}
+      <SectionPanel title="Content">
+        <div className="flex flex-col gap-5">
+          <Field label="Stem" htmlFor="stem">
+            <textarea
+              id="stem"
+              required
+              rows={3}
+              value={stem}
+              onChange={(e) => setStem(e.target.value)}
+              className={inputClass("resize-y")}
+              placeholder="The clinical prompt shown to the user."
             />
+          </Field>
 
-            {/* Removing is always allowed in the UI down to 2 rows; the server
-                rejects removing an option that has already been answered. */}
-            {choices.length > 2 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => removeChoice(choice.key)}
-                aria-label={`Remove option ${index + 1}`}
-                className="shrink-0"
-              >
-                Remove
-              </Button>
-            ) : null}
-          </div>
-        ))}
-
-        <div>
-          <Button type="button" variant="ghost" onClick={addChoice}>
-            Add option
-          </Button>
+          <Field label="Explanation" htmlFor="explanation">
+            <textarea
+              id="explanation"
+              required
+              rows={3}
+              value={explanation}
+              onChange={(e) => setExplanation(e.target.value)}
+              className={inputClass("resize-y")}
+              placeholder="The teaching point shown after answering."
+            />
+          </Field>
         </div>
-      </fieldset>
+      </SectionPanel>
+
+      <SectionPanel title="Image">
+        <EegImageUpload value={imageUrl} onChange={setImageUrl} />
+      </SectionPanel>
+
+      <SectionPanel title="Answer options" aside="Select the one correct answer">
+        <fieldset className="flex flex-col gap-3">
+          <legend className="sr-only">Options — select the one correct answer</legend>
+
+          {choices.map((choice, index) => (
+            <div key={choice.key} className="flex items-center gap-3">
+              {/* Radio enforces exactly-one-correct in the UI; label text makes the
+                  state non-color-only and gives the radio a large hit target. */}
+              <label className="inline-flex shrink-0 items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name={correctRadioName}
+                  checked={choice.isCorrect}
+                  onChange={() => setCorrect(choice.key)}
+                  className="h-4 w-4 accent-[var(--accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+                  aria-label={`Mark option ${index + 1} as correct`}
+                />
+                <span className="text-[var(--muted)]">Correct</span>
+              </label>
+
+              <input
+                type="text"
+                value={choice.text}
+                onChange={(e) => setChoiceText(choice.key, e.target.value)}
+                className={inputClass()}
+                placeholder={`Option ${index + 1}`}
+                aria-label={`Option ${index + 1} text`}
+              />
+
+              {/* Removing is always allowed in the UI down to 2 rows; the server
+                  rejects removing an option that has already been answered. */}
+              {choices.length > 2 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => removeChoice(choice.key)}
+                  aria-label={`Remove option ${index + 1}`}
+                  className="shrink-0"
+                >
+                  Remove
+                </Button>
+              ) : null}
+            </div>
+          ))}
+
+          <div>
+            <Button type="button" variant="ghost" onClick={addChoice}>
+              Add option
+            </Button>
+          </div>
+        </fieldset>
+      </SectionPanel>
+
+      <SectionPanel title="Meta">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Difficulty" htmlFor="difficulty">
+            <select
+              id="difficulty"
+              value={difficulty}
+              onChange={(e) => setDifficulty(Number(e.target.value))}
+              className={inputClass()}
+            >
+              {Array.from(
+                { length: MAX_DIFFICULTY - MIN_DIFFICULTY + 1 },
+                (_, i) => MIN_DIFFICULTY + i,
+              ).map((level) => (
+                <option key={level} value={level}>
+                  {level} — {DIFFICULTY_LABELS[level]}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Category" htmlFor="category">
+            <select
+              id="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as QuestionCategory)}
+              className={inputClass()}
+            >
+              {Object.values(QuestionCategory).map((value) => (
+                <option key={value} value={value}>
+                  {QUESTION_CATEGORY_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </SectionPanel>
 
       {error ? (
         <p role="alert" className="text-sm text-red-600">

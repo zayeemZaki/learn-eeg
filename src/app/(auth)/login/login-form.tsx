@@ -6,7 +6,7 @@ import { authenticate } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Field, inputClass } from "@/components/ui/field";
 
-export function LoginForm() {
+export function LoginForm({ resetSuccess = false }: { resetSuccess?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -25,6 +25,11 @@ export function LoginForm() {
   return (
     <div className="flex flex-col gap-5">
       <h1 className="text-2xl font-bold">Welcome back</h1>
+      {resetSuccess ? (
+        <p className="text-sm text-green-600">
+          Your password has been updated. Log in with your new password.
+        </p>
+      ) : null}
       <form action={onSubmit} className="flex flex-col gap-4">
         <Field label="Email" htmlFor="email">
           <input id="email" name="email" type="email" required className={inputClass()} />
@@ -32,6 +37,11 @@ export function LoginForm() {
         <Field label="Password" htmlFor="password">
           <input id="password" name="password" type="password" required className={inputClass()} />
         </Field>
+        <div className="-mt-1 text-right">
+          <Link href="/forgot-password" className="text-sm text-[var(--accent)]">
+            Forgot password?
+          </Link>
+        </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Button type="submit" disabled={isPending}>
           {isPending ? "Signing in…" : "Log in"}

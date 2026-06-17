@@ -1,8 +1,13 @@
 import { type ReactNode } from "react";
+import { cookies } from "next/headers";
 import type { Role } from "@prisma/client";
 
 import type { NavSection } from "@/components/shell/nav-config";
 import { ShellChrome } from "@/components/shell/shell-chrome";
+import {
+  SIDEBAR_COOKIE,
+  normalizeSidebarState,
+} from "@/components/shell/sidebar-state";
 import {
   DashboardIcon,
   QuestionsIcon,
@@ -56,16 +61,27 @@ const ADMIN: NavSection = {
  * section, which is how they move between the app and admin areas (no separate
  * topbar affordance). The topbar carries no page nav — the sidebar is the only
  * navigation.
+ *
+ * The desktop sidebar's chosen state (expanded / icon rail / hidden) is read
+ * here from a cookie so the server renders the correct width on first paint —
+ * the toggle writes the same cookie client-side, so the choice survives reload
+ * with no localStorage and no hydration flash. Stays async (cookies() is async
+ * in Next 16) but introduces no new fetch.
  */
-export function AppShell({ role, userName, userEmail, signOut, children }: AppShellProps) {
+export async function AppShell({ role, userName, userEmail, signOut, children }: AppShellProps) {
   const isAdmin = role === "ADMIN";
   const sections = isAdmin ? [PRIMARY, ADMIN] : [PRIMARY];
+
+  const initialSidebar = normalizeSidebarState(
+    (await cookies()).get(SIDEBAR_COOKIE)?.value,
+  );
 
   return (
     <ShellChrome
       sections={sections}
       user={{ name: userName, email: userEmail }}
       signOut={signOut}
+      initialSidebar={initialSidebar}
     >
       {children}
     </ShellChrome>

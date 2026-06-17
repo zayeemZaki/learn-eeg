@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Role } from "@prisma/client";
 
 import { db } from "@/lib/db";
@@ -115,34 +116,44 @@ export default async function AdminUsersPage() {
           columns={columns}
           rows={rows}
           rowKey={(u) => u.id}
+          rowHref={(u) => `/admin/users/${u.id}`}
+          rowLabel={(u) => `Edit ${u.name}`}
           renderCard={(user) => (
-            <Card className="flex flex-col gap-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-[var(--foreground)]">{user.name}</p>
-                  <p className="truncate text-sm text-[var(--muted)]">{user.email}</p>
+            // The whole card is the tap target (same as the desktop row): one
+            // Link, hover affordance, and a visible focus ring.
+            <Link
+              href={`/admin/users/${user.id}`}
+              aria-label={`Edit ${user.name}`}
+              className="block rounded-xl outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+            >
+              <Card className="flex flex-col gap-2 transition-colors hover:border-[color-mix(in_srgb,var(--accent)_40%,var(--border))]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-[var(--foreground)]">{user.name}</p>
+                    <p className="truncate text-sm text-[var(--muted)]">{user.email}</p>
+                  </div>
+                  <RoleBadge role={user.role} />
                 </div>
-                <RoleBadge role={user.role} />
-              </div>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                <div>
-                  <dt className="text-[var(--muted)]">Position</dt>
-                  <dd>{POSITION_LABELS[user.position]}</dd>
-                </div>
-                <div>
-                  <dt className="text-[var(--muted)]">Institution</dt>
-                  <dd className="truncate">{user.institution}</dd>
-                </div>
-                <div>
-                  <dt className="text-[var(--muted)]">Attempts</dt>
-                  <dd className="tabular-nums">{user.attempts}</dd>
-                </div>
-                <div>
-                  <dt className="text-[var(--muted)]">Joined</dt>
-                  <dd className="tabular-nums">{dateFmt.format(user.createdAt)}</dd>
-                </div>
-              </dl>
-            </Card>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <div>
+                    <dt className="text-[var(--muted)]">Position</dt>
+                    <dd>{POSITION_LABELS[user.position]}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[var(--muted)]">Institution</dt>
+                    <dd className="truncate">{user.institution}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[var(--muted)]">Attempts</dt>
+                    <dd className="tabular-nums">{user.attempts}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[var(--muted)]">Joined</dt>
+                    <dd className="tabular-nums">{dateFmt.format(user.createdAt)}</dd>
+                  </div>
+                </dl>
+              </Card>
+            </Link>
           )}
         />
       )}

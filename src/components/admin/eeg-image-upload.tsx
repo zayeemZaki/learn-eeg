@@ -25,10 +25,15 @@ const MAX_MB = Math.round(MAX_IMAGE_BYTES / (1024 * 1024));
 /**
  * EEG image picker that uploads directly from the browser to Vercel Blob via the
  * admin token route (/api/admin/upload), bypassing the serverless body-size
- * limit. Shows the current image when editing, live progress while uploading,
- * and remove/replace controls. Its only output is the resulting Blob URL, lifted
- * to the parent via onChange — so it's a drop-in for any form needing one EEG
- * image (the Phase 3 atlas form reuses it unchanged).
+ * limit. Its only output is the resulting Blob URL, lifted to the parent via
+ * onChange — so it's a drop-in for any form needing one EEG image (the atlas
+ * form reuses it unchanged).
+ *
+ * Presentation is a compact thumbnail control, not a giant drop-zone: the empty
+ * state is a single "Upload image" button with the size/type hint beside it;
+ * once set, a small (~112px) thumbnail preview reveals Replace/Remove on
+ * hover/focus; while uploading, progress is a compact inline label on the
+ * button/thumbnail. All upload logic is unchanged — only the chrome around it.
  *
  * Type and size are validated here for instant feedback; the token route
  * re-enforces both server-side, so this check is convenience, not security.
@@ -79,66 +84,104 @@ export function EegImageUpload({ value, onChange, id = "eeg-image" }: EegImageUp
     }
   }
 
+  const openPicker = () => inputRef.current?.click();
+  const hint = `PNG, JPEG, or WebP · up to ${MAX_MB} MB.`;
+
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium text-[var(--muted)]">EEG image (optional)</span>
 
+      {/* The file input is always mounted but visually hidden; the controls
+          below drive it. Reset-on-select and disabled-while-uploading behaviour
+          is unchanged from before. */}
+      <input
+        ref={inputRef}
+        id={id}
+        type="file"
+        accept={ACCEPT}
+        onChange={onFileSelected}
+        disabled={uploading}
+        className="sr-only"
+      />
+
       {value ? (
-        <EegImage src={value} alt="Selected EEG image preview" />
+        // Set state: a small thumbnail with Replace/Remove revealed on hover or
+        // keyboard focus (the overlay is also shown whenever a control inside it
+        // is focused, so it's reachable without a mouse).
+        <div className="flex items-start gap-3">
+          <div className="group relative w-28 shrink-0">
+            <EegImage src={value} alt="Selected EEG image preview" />
+
+            {/* Hover/focus overlay with the two actions. Hidden by default, shown
+                on hover and whenever it contains focus; motion-safe fade. */}
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)] opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 motion-reduce:transition-none">
+              <OverlayButton onClick={openPicker} disabled={uploading} label="Replace" />
+              <OverlayButton onClick={() => onChange(null)} disabled={uploading} label="Remove" />
+            </div>
+
+            {/* Uploading: a compact label over the thumbnail, not a full-width bar. */}
+            {uploading ? (
+              <div
+                className="absolute inset-0 flex items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--foreground)_55%,transparent)] text-xs font-medium text-white"
+                role="progressbar"
+                aria-label="Upload progress"
+                aria-valuenow={progress ?? 0}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                {progress ?? 0}%
+              </div>
+            ) : null}
+          </div>
+
+          <p className="text-xs text-[var(--muted)]">{hint}</p>
+        </div>
       ) : (
-        <div className="flex aspect-[16/9] w-full items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] text-sm text-[var(--muted)]">
-          No image
+        // Empty state: a single compact button — no large drop-zone — with the
+        // size/type hint as small helper text beside it.
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Button type="button" variant="ghost" disabled={uploading} onClick={openPicker}>
+            {uploading ? (
+              <span
+                role="progressbar"
+                aria-label="Upload progress"
+                aria-valuenow={progress ?? 0}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                Uploading… {progress ?? 0}%
+              </span>
+            ) : (
+              "Upload image"
+            )}
+          </Button>
+          <p className="text-xs text-[var(--muted)]">{hint}</p>
         </div>
       )}
 
-      {/* Live progress, announced for assistive tech. */}
-      {uploading ? (
-        <div
-          className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]"
-          role="progressbar"
-          aria-label="Upload progress"
-          aria-valuenow={progress ?? 0}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <div
-            className="h-full rounded-full bg-[var(--accent)] transition-[width]"
-            style={{ width: `${progress ?? 0}%` }}
-          />
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          ref={inputRef}
-          id={id}
-          type="file"
-          accept={ACCEPT}
-          onChange={onFileSelected}
-          disabled={uploading}
-          className="sr-only"
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={uploading}
-          onClick={() => inputRef.current?.click()}
-        >
-          {uploading
-            ? `Uploading… ${progress ?? 0}%`
-            : value
-              ? "Replace image"
-              : "Upload image"}
-        </Button>
-        {value && !uploading ? (
-          <Button type="button" variant="ghost" onClick={() => onChange(null)}>
-            Remove
-          </Button>
-        ) : null}
-      </div>
-
-      <p className="text-xs text-[var(--muted)]">PNG, JPEG, or WebP · up to {MAX_MB} MB.</p>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </div>
+  );
+}
+
+/** A small overlay action over the thumbnail (Replace / Remove). Presentational. */
+function OverlayButton({
+  onClick,
+  disabled,
+  label,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-md bg-[color-mix(in_srgb,var(--surface)_95%,transparent)] px-2 py-1 text-xs font-medium text-[var(--foreground)] outline-none transition hover:bg-[var(--surface)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+    >
+      {label}
+    </button>
   );
 }

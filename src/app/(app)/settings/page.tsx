@@ -5,18 +5,21 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Badge } from "@/components/ui/badge";
 import { POSITION_LABELS } from "@/lib/validations/auth";
+import { ProfileForm } from "@/app/(app)/settings/profile-form";
+import { PasswordForm } from "@/app/(app)/settings/password-form";
 
 export const metadata = { title: "Settings" };
 
 /**
- * Account settings — placeholder for M4. Editing your name / email / password
- * lands in M5; for now this page renders the signed-in user's current account
- * details read-only so the account menu's "Settings" link resolves to a real,
- * on-theme page rather than a 404. No actions, no forms, no mutations here.
+ * Account settings (M5). Lets a signed-in user edit their own name / email and
+ * change their password. The (app) layout already guards the route; we re-read
+ * the session only to pre-fill the forms with the user's own details (no fetch
+ * of anyone else's data). The actual writes happen in self-scoped server actions
+ * (account.ts) — this page just renders and seeds the forms.
  *
- * The (app) layout already guards the route; we re-read the session only to show
- * the user their own details (the same session the layout holds — no new fetch
- * of other data).
+ * Position / institution / role stay read-only here: a user's clinical position
+ * and institution are set at registration and their role is admin-controlled, so
+ * only name / email / password are self-editable.
  */
 export default async function SettingsPage() {
   const session = await auth();
@@ -25,18 +28,17 @@ export default async function SettingsPage() {
   const { name, email, position, institution, role } = session.user;
   const roleLabel = role === "ADMIN" ? "Admin" : POSITION_LABELS[position];
 
-  const rows: { label: string; value: string }[] = [
-    { label: "Name", value: name ?? "—" },
-    { label: "Email", value: email ?? "—" },
-    { label: "Institution", value: institution },
-  ];
-
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader
-        title="Settings"
-        description="Your account details. Editing arrives in a later update."
-      />
+      <PageHeader title="Settings" description="Manage your account details." />
+
+      <SectionPanel title="Profile">
+        <ProfileForm defaultName={name ?? ""} defaultEmail={email ?? ""} />
+      </SectionPanel>
+
+      <SectionPanel title="Password">
+        <PasswordForm />
+      </SectionPanel>
 
       <SectionPanel
         title="Account"
@@ -49,7 +51,10 @@ export default async function SettingsPage() {
         }
       >
         <dl className="divide-y divide-[var(--border)]">
-          {rows.map((row) => (
+          {[
+            { label: "Position", value: POSITION_LABELS[position] },
+            { label: "Institution", value: institution },
+          ].map((row) => (
             <div
               key={row.label}
               className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
@@ -61,13 +66,6 @@ export default async function SettingsPage() {
             </div>
           ))}
         </dl>
-      </SectionPanel>
-
-      <SectionPanel title="Editing your profile">
-        <p className="text-sm text-[var(--muted)]">
-          Updating your name, email, and password — plus password reset — is
-          coming soon. For now these details are managed for you.
-        </p>
       </SectionPanel>
     </div>
   );

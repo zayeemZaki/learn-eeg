@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import Link from "next/link";
 
 /**
  * A single column definition. `header` is the column label; `cell` renders the
@@ -29,6 +30,17 @@ interface DataTableProps<T> {
    * differ (a question card vs. a user card), while the table is uniform.
    */
   renderCard: (row: T) => ReactNode;
+  /**
+   * When provided, the WHOLE row is a link to this href: the row shows a hover
+   * affordance (cursor + subtle bg), is keyboard-focusable, and Enter activates
+   * it. Implemented with a stretched overlay link in the first cell (valid table
+   * markup — no <a> wrapping <td>s); any interactive control in a cell that must
+   * sit above it (e.g. a Delete button) should set `relative z-10` and stop
+   * click propagation so a row-click never triggers it.
+   */
+  rowHref?: (row: T) => string;
+  /** Accessible label for the stretched row link (e.g. `Edit ${row.name}`). */
+  rowLabel?: (row: T) => string;
   /** Minimum table width before the bordered surface scrolls horizontally. */
   minWidthClass?: string;
 }
@@ -55,6 +67,8 @@ export function DataTable<T>({
   rows,
   rowKey,
   renderCard,
+  rowHref,
+  rowLabel,
   minWidthClass = "min-w-[44rem]",
 }: DataTableProps<T>) {
   return (
@@ -84,18 +98,47 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={rowKey(row)} className="border-b border-[var(--border)] last:border-0">
-                {columns.map((col, i) => (
-                  <td
-                    key={i}
-                    className={`px-4 py-3 ${alignClass[col.align ?? "left"]} ${col.className ?? ""}`}
-                  >
-                    {col.cell(row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const href = rowHref?.(row);
+              return (
+                <tr
+                  key={rowKey(row)}
+                  className={`border-b border-[var(--border)] last:border-0 ${
+                    href
+                      ? // Whole-row link: the <tr> is the positioning context for
+                        // the stretched overlay link, with a subtle hover/focus
+                        // fill and a focus ring driven by the overlay's focus.
+                        "relative transition-colors hover:bg-[var(--background)] focus-within:bg-[var(--background)] has-[a:focus-visible]:outline has-[a:focus-visible]:-outline-offset-2 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-[var(--accent)]"
+                      : ""
+                  }`}
+                >
+                  {columns.map((col, i) => (
+                    <td
+                      key={i}
+                      className={`px-4 py-3 ${alignClass[col.align ?? "left"]} ${col.className ?? ""}`}
+                    >
+                      {/* Stretched overlay link, anchored to the relative <tr> so
+                          it covers the WHOLE row (not just this cell). Makes the
+                          row clickable + keyboard-focusable (Enter activates) while
+                          keeping valid table markup — no <a> wrapping <td>s. Lives
+                          in the first cell only so it's emitted once per row. */}
+                      {href && i === 0 ? (
+                        <Link href={href} aria-label={rowLabel?.(row)} className="absolute inset-0 outline-none">
+                          <span className="sr-only">{rowLabel?.(row)}</span>
+                        </Link>
+                      ) : null}
+                      {/* Cell content is left unpositioned so the absolute overlay
+                          link paints above it and the whole row stays clickable.
+                          Interactive controls in a cell (e.g. a Delete button) must
+                          lift themselves above the overlay with `relative z-10` and
+                          stop click propagation — see the admin Questions/Atlas
+                          Actions cells. */}
+                      {col.cell(row)}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

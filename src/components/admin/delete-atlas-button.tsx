@@ -30,10 +30,19 @@ export function DeleteAtlasButton({ id }: { id: string }) {
     });
   }
 
+  // Stop clicks bubbling so a Delete inside a row-link cell never also triggers
+  // the row's edit navigation (the control already sits above the row overlay).
   if (!confirming) {
     return (
       <div className="flex flex-col items-end gap-1">
-        <Button type="button" variant="ghost" onClick={() => setConfirming(true)}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={(e) => {
+            e.stopPropagation();
+            setConfirming(true);
+          }}
+        >
           Delete
         </Button>
         {error ? <span className="text-xs text-red-600">{error}</span> : null}
@@ -44,13 +53,23 @@ export function DeleteAtlasButton({ id }: { id: string }) {
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs text-[var(--muted)]">Delete?</span>
-      <Button type="button" onClick={onConfirm} disabled={isPending}>
+      <Button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onConfirm();
+        }}
+        disabled={isPending}
+      >
         {isPending ? "Deleting…" : "Confirm"}
       </Button>
       <Button
         type="button"
         variant="ghost"
-        onClick={() => setConfirming(false)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setConfirming(false);
+        }}
         disabled={isPending}
       >
         Cancel

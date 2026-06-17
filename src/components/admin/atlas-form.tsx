@@ -6,6 +6,7 @@ import { AtlasCategory } from "@prisma/client";
 
 import { Button } from "@/components/ui/button";
 import { Field, inputClass } from "@/components/ui/field";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { EegImageUpload } from "@/components/admin/eeg-image-upload";
 import {
   createAtlasEntry,
@@ -89,49 +90,60 @@ export function AtlasForm({ entry }: AtlasFormProps) {
   }
 
   return (
+    // Grouped to mirror QuestionForm: a Details section (title + category side
+    // by side, then description) and a secondary, compact Image section. Both
+    // forms reuse the same Field/SectionPanel/EegImageUpload components (DRY).
     <form action={onSubmit} className="flex flex-col gap-6">
-      <Field label="Title" htmlFor="title">
-        <input
-          id="title"
-          type="text"
-          required
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className={inputClass()}
-          placeholder="e.g. Wicket spikes"
-        />
-      </Field>
+      <SectionPanel title="Details">
+        <div className="flex flex-col gap-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Title" htmlFor="title">
+              <input
+                id="title"
+                type="text"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className={inputClass()}
+                placeholder="e.g. Wicket spikes"
+              />
+            </Field>
 
-      <Field label="Category" htmlFor="category">
-        <select
-          id="category"
-          value={category}
-          onChange={(e) => setCategory(e.target.value as AtlasCategory)}
-          className={inputClass()}
-        >
-          {CATEGORY_OPTIONS.map((value) => (
-            <option key={value} value={value}>
-              {ATLAS_CATEGORY_LABELS[value]}
-            </option>
-          ))}
-        </select>
-      </Field>
+            <Field label="Category" htmlFor="category">
+              <select
+                id="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value as AtlasCategory)}
+                className={inputClass()}
+              >
+                {CATEGORY_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {ATLAS_CATEGORY_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
 
-      <Field label="Description" htmlFor="description">
-        <textarea
-          id="description"
-          required
-          rows={4}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className={inputClass("resize-y")}
-          placeholder="What the pattern looks like and how to recognise it."
-        />
-      </Field>
+          <Field label="Description" htmlFor="description">
+            <textarea
+              id="description"
+              required
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={inputClass("resize-y")}
+              placeholder="What the pattern looks like and how to recognise it."
+            />
+          </Field>
+        </div>
+      </SectionPanel>
 
-      {/* Reused unchanged from the question form. The image is required for an
-          atlas entry; the shared schema enforces that on submit. */}
-      <EegImageUpload value={imageUrl} onChange={setImageUrl} />
+      <SectionPanel title="Image">
+        {/* Reused unchanged from the question form. The image is required for an
+            atlas entry; the shared schema enforces that on submit. */}
+        <EegImageUpload value={imageUrl} onChange={setImageUrl} />
+      </SectionPanel>
 
       {error ? (
         <p role="alert" className="text-sm text-red-600">

@@ -19,18 +19,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth";
+import { requireAdmin } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { atlasEntrySchema, type AtlasEntryInput } from "@/lib/validations/atlas";
 import { type ActionResult } from "@/app/actions/admin-questions";
-
-/** Throws unless the caller is a signed-in admin. Called first in every action. */
-async function requireAdmin() {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
-}
 
 /**
  * Drop the caches that show atlas entries: the admin list and BOTH public

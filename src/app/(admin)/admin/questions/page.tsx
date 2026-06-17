@@ -85,13 +85,14 @@ export default async function AdminQuestionsPage() {
     { header: "Attempts", align: "right", cell: (q) => <span className="tabular-nums">{q.attempts}</span> },
     { header: "Difficulty", align: "right", cell: (q) => <span className="tabular-nums">{q.difficulty}</span> },
     {
-      header: "Actions",
+      // Row-click opens the editor (see rowHref); Delete stays an explicit
+      // control, lifted above the row's overlay link so a row-click never
+      // triggers a delete.
+      header: "Delete",
       align: "right",
+      headerSrOnly: true,
       cell: (q) => (
-        <div className="flex items-center justify-end gap-2">
-          <Link href={`/admin/questions/${q.id}/edit`}>
-            <Button variant="ghost">Edit</Button>
-          </Link>
+        <div className="relative z-10 flex items-center justify-end">
           <DeleteQuestionButton id={q.id} />
         </div>
       ),
@@ -117,23 +118,30 @@ export default async function AdminQuestionsPage() {
           columns={columns}
           rows={rows}
           rowKey={(q) => q.id}
+          rowHref={(q) => `/admin/questions/${q.id}/edit`}
+          rowLabel={(q) => `Edit question: ${q.stem}`}
           renderCard={(q) => (
+            // The card body is the tap target → edit; the Delete control is a
+            // sibling outside the link so a card tap never deletes.
             <Card className="flex flex-col gap-3">
-              <p className="line-clamp-3 text-sm font-medium text-[var(--foreground)]">{q.stem}</p>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
-                <span className="tabular-nums">{q.choices} options</span>
-                <span className="tabular-nums">{q.attempts} attempts</span>
-                <span className="tabular-nums">Difficulty {q.difficulty}</span>
-                {q.hasImage ? (
-                  <Badge variant="subtle" tone="neutral" icon={<ImageIcon />}>
-                    Image
-                  </Badge>
-                ) : null}
-              </div>
-              <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
-                <Link href={`/admin/questions/${q.id}/edit`}>
-                  <Button variant="ghost">Edit</Button>
-                </Link>
+              <Link
+                href={`/admin/questions/${q.id}/edit`}
+                aria-label={`Edit question: ${q.stem}`}
+                className="-m-1 flex flex-col gap-3 rounded-lg p-1 outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              >
+                <p className="line-clamp-3 text-sm font-medium text-[var(--foreground)]">{q.stem}</p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
+                  <span className="tabular-nums">{q.choices} options</span>
+                  <span className="tabular-nums">{q.attempts} attempts</span>
+                  <span className="tabular-nums">Difficulty {q.difficulty}</span>
+                  {q.hasImage ? (
+                    <Badge variant="subtle" tone="neutral" icon={<ImageIcon />}>
+                      Image
+                    </Badge>
+                  ) : null}
+                </div>
+              </Link>
+              <div className="flex items-center justify-end border-t border-[var(--border)] pt-3">
                 <DeleteQuestionButton id={q.id} />
               </div>
             </Card>

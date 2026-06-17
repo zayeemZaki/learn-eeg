@@ -1,5 +1,4 @@
 import { getLatestLiterature } from "@/lib/pubmed";
-import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -19,19 +18,27 @@ export default async function LiteraturePage() {
       {articles.length === 0 ? (
         <EmptyState message="Couldn't load articles right now. Try again shortly." />
       ) : (
-        <div className="flex flex-col gap-3">
+        // A compact feed, not eight tall cards: one bordered surface with hairline
+        // divided rows. Each row is the link; the title is the primary line and
+        // "journal · date" the muted secondary line.
+        <ul className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
           {articles.map((article) => (
-            <a key={article.pmid} href={article.url} target="_blank" rel="noreferrer">
-              <Card className="transition hover:border-[var(--accent)]">
-                <h2 className="font-medium">{article.title}</h2>
-                <p className="mt-1 text-sm text-[var(--muted)]">
+            <li key={article.pmid} className="border-b border-[var(--border)] last:border-0">
+              <a
+                href={article.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block px-4 py-3 outline-none transition-colors hover:bg-[var(--background)] focus-visible:bg-[var(--background)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
+              >
+                <p className="font-medium leading-snug text-[var(--foreground)]">{article.title}</p>
+                <p className="mt-0.5 text-sm text-[var(--muted)]">
                   {article.journal}
                   {article.pubDate ? ` · ${article.pubDate}` : ""}
                 </p>
-              </Card>
-            </a>
+              </a>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

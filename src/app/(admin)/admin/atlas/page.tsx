@@ -120,13 +120,14 @@ export default async function AdminAtlasPage({
       ),
     },
     {
-      header: "Actions",
+      // Row-click opens the editor (see rowHref); Delete stays an explicit
+      // control, lifted above the row's overlay link so a row-click never
+      // triggers a delete.
+      header: "Delete",
       align: "right",
+      headerSrOnly: true,
       cell: (entry) => (
-        <div className="flex items-center justify-end gap-2">
-          <Link href={`/admin/atlas/${entry.id}/edit`}>
-            <Button variant="ghost">Edit</Button>
-          </Link>
+        <div className="relative z-10 flex items-center justify-end">
           <DeleteAtlasButton id={entry.id} />
         </div>
       ),
@@ -160,18 +161,25 @@ export default async function AdminAtlasPage({
           columns={columns}
           rows={entries}
           rowKey={(entry) => entry.id}
+          rowHref={(entry) => `/admin/atlas/${entry.id}/edit`}
+          rowLabel={(entry) => `Edit ${entry.title}`}
           renderCard={(entry) => (
+            // The card body is the tap target → edit; the Delete control is a
+            // sibling outside the link so a card tap never deletes.
             <Card className="flex flex-col gap-3">
-              <EegImage src={entry.imageUrl} alt={entry.title} />
-              <div className="flex items-start justify-between gap-3">
-                <p className="min-w-0 font-medium text-[var(--foreground)]">{entry.title}</p>
-                <CategoryBadge category={entry.category} />
-              </div>
-              <p className="line-clamp-3 text-sm text-[var(--muted)]">{entry.description}</p>
-              <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
-                <Link href={`/admin/atlas/${entry.id}/edit`}>
-                  <Button variant="ghost">Edit</Button>
-                </Link>
+              <Link
+                href={`/admin/atlas/${entry.id}/edit`}
+                aria-label={`Edit ${entry.title}`}
+                className="-m-1 flex flex-col gap-3 rounded-lg p-1 outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              >
+                <EegImage src={entry.imageUrl} alt={entry.title} />
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 font-medium text-[var(--foreground)]">{entry.title}</p>
+                  <CategoryBadge category={entry.category} />
+                </div>
+                <p className="line-clamp-3 text-sm text-[var(--muted)]">{entry.description}</p>
+              </Link>
+              <div className="flex items-center justify-end border-t border-[var(--border)] pt-3">
                 <DeleteAtlasButton id={entry.id} />
               </div>
             </Card>

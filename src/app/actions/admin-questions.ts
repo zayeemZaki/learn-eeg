@@ -12,19 +12,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth";
+import { requireAdmin } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { questionSchema, type QuestionInput } from "@/lib/validations/question";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
-
-/** Throws unless the caller is a signed-in admin. Called first in every action. */
-async function requireAdmin() {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
-}
 
 /** Drop the caches that show questions: the admin list and the public list. */
 function revalidateQuestionViews() {

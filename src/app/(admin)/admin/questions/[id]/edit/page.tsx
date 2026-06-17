@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { QuestionForm } from "@/components/admin/question-form";
+import { DeleteQuestionButton } from "@/components/admin/delete-question-button";
 import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Edit question" };
@@ -43,6 +44,23 @@ export default async function EditQuestionPage({
         back={{ href: "/admin/questions", label: "Back to questions" }}
       />
       <QuestionForm question={question} />
+
+      {/* Danger zone — the delete control lives on the edit page (not the list);
+          the trash button opens a confirm modal and, on success, returns to the
+          list. The deleteQuestion action itself is unchanged. */}
+      <section
+        aria-label="Danger zone"
+        className="rounded-xl border border-[color-mix(in_srgb,#dc2626_25%,var(--border))] bg-[color-mix(in_srgb,#dc2626_4%,var(--surface))] p-4"
+      >
+        <h2 className="text-sm font-semibold text-[var(--foreground)]">Danger zone</h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          Deleting a question also removes its choices and any attempt history. This
+          can&apos;t be undone.
+        </p>
+        <div className="mt-3">
+          <DeleteQuestionButton id={question.id} />
+        </div>
+      </section>
     </div>
   );
 }

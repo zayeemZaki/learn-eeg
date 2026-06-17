@@ -1,18 +1,24 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
+import { TrashIcon } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteQuestion } from "@/app/actions/admin-questions";
 
 /**
- * Two-step delete for a question row: the first click reveals Confirm/Cancel so
- * a question is never destroyed on a single click. Confirm calls the
- * role-gated deleteQuestion action (which cascades choices + attempts) and the
- * revalidated list re-renders without the row. Errors surface inline.
+ * Delete affordance for the question EDIT page (moved here from the list row):
+ * a destructive trash-icon button that opens a shared confirm modal so a
+ * question is never destroyed on a single click. Confirm calls the role-gated
+ * deleteQuestion action (which cascades choices + attempts) unchanged; the
+ * action revalidates /admin/questions, and on success we navigate back to that
+ * list (the list page is where the deletion is reflected). Errors surface inline
+ * below the button.
  */
 export function DeleteQuestionButton({ id }: { id: string }) {
-  const [confirming, setConfirming] = useState(false);
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -22,56 +28,36 @@ export function DeleteQuestionButton({ id }: { id: string }) {
       const result = await deleteQuestion(id);
       if (!result.ok) {
         setError(result.error);
-        setConfirming(false);
+        setOpen(false);
+        return;
       }
-      // On success the action revalidates /admin/questions and the row vanishes.
+      // Deleted: the action already revalidated the list — return to it.
+      router.push("/admin/questions");
     });
   }
 
-  // Stop clicks bubbling so a Delete inside a row-link cell never also triggers
-  // the row's edit navigation (the control already sits above the row overlay).
-  if (!confirming) {
-    return (
-      <div className="flex flex-col items-end gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={(e) => {
-            e.stopPropagation();
-            setConfirming(true);
-          }}
-        >
-          Delete
-        </Button>
-        {error ? <span className="text-xs text-red-600">{error}</span> : null}
-      </div>
-    );
-  }
-
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-[var(--muted)]">Delete?</span>
-      <Button
+    <div className="flex flex-col items-start gap-1">
+      <button
         type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onConfirm();
-        }}
-        disabled={isPending}
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-2 rounded-lg border border-[color-mix(in_srgb,#dc2626_30%,var(--border))] px-3 py-2 text-sm font-medium text-red-600 outline-none transition hover:bg-[color-mix(in_srgb,#dc2626_8%,transparent)] focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
+        aria-label="Delete question"
       >
-        {isPending ? "Deleting…" : "Confirm"}
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={(e) => {
-          e.stopPropagation();
-          setConfirming(false);
-        }}
-        disabled={isPending}
-      >
-        Cancel
-      </Button>
+        <TrashIcon />
+        Delete question
+      </button>
+      {error ? <span className="text-xs text-red-600">{error}</span> : null}
+
+      <ConfirmDialog
+        open={open}
+        title="Delete question?"
+        description="This permanently removes the question along with its choices and any attempt history. This can't be undone."
+        confirmLabel="Delete question"
+        pending={isPending}
+        onConfirm={onConfirm}
+        onCancel={() => setOpen(false)}
+      />
     </div>
   );
 }

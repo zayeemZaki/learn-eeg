@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { AtlasForm } from "@/components/admin/atlas-form";
+import { DeleteAtlasButton } from "@/components/admin/delete-atlas-button";
 import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Edit atlas entry" };
@@ -37,6 +38,23 @@ export default async function EditAtlasEntryPage({
         back={{ href: "/admin/atlas", label: "Back to atlas" }}
       />
       <AtlasForm entry={entry} />
+
+      {/* Danger zone — the delete control lives on the edit page (not the list);
+          the trash button opens a confirm modal and, on success, returns to the
+          list. The deleteAtlasEntry action itself is unchanged. */}
+      <section
+        aria-label="Danger zone"
+        className="rounded-xl border border-[color-mix(in_srgb,#dc2626_25%,var(--border))] bg-[color-mix(in_srgb,#dc2626_4%,var(--surface))] p-4"
+      >
+        <h2 className="text-sm font-semibold text-[var(--foreground)]">Danger zone</h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          Deleting this entry removes it from the atlas permanently. This can&apos;t be
+          undone.
+        </p>
+        <div className="mt-3">
+          <DeleteAtlasButton id={entry.id} />
+        </div>
+      </section>
     </div>
   );
 }

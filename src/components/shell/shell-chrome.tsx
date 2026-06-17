@@ -7,6 +7,7 @@ import type { NavSection } from "@/components/shell/nav-config";
 import {
   SIDEBAR_COOKIE,
   SIDEBAR_COOKIE_MAX_AGE,
+  nextSidebarState,
   type SidebarState,
 } from "@/components/shell/sidebar-state";
 import { BrandGlyph } from "@/components/shell/brand-glyph";
@@ -44,39 +45,27 @@ function CloseIcon() {
     </svg>
   );
 }
-// A double-chevron that points left when expanded (collapse) and right when on
-// the rail (expand) — the direction is the affordance, not colour.
-function CollapseIcon({ pointing }: { pointing: "left" | "right" }) {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      className={`h-4 w-4 ${pointing === "right" ? "rotate-180" : ""}`}
-      fill="none"
-      aria-hidden="true"
-    >
-      <path d="M11 5l-4 5 4 5M15 5l-4 5 4 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
-const railBtn =
+const ctrlBtn =
   "inline-flex items-center justify-center rounded-lg border border-[var(--border)] text-[var(--muted)] outline-none transition hover:border-[color-mix(in_srgb,var(--accent)_40%,var(--border))] hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]";
 
 /**
- * The interactive shell chrome: a fixed left sidebar + thin topbar + scrollable
- * content area, full height. This is the single client island for the shell —
- * the surrounding (app)/(admin) layouts stay server components and pass the
- * nav sections and the sign-out form down. The sidebar is the only navigation;
- * the topbar carries no page nav (just the mobile drawer toggle, the desktop
- * sidebar controls, and the top-right account menu).
+ * The interactive shell chrome — the single client island for the shell; the
+ * surrounding (app)/(admin) layouts stay server components and pass the nav
+ * sections and the sign-out form down. There is NO topbar: content starts at the
+ * top of the well. Two floating controls sit in the top gutters instead —
+ * a hamburger + brand top-LEFT, and the account avatar top-RIGHT — neither in a
+ * full-width bar.
  *
- * Desktop: a three-state sidebar — EXPANDED (w-64, glyphs + labels), ICON RAIL
- * (icons only with tooltips), or HIDDEN. A chevron at the sidebar foot cycles
- * expanded↔rail; a small "hide" control collapses it away, and a topbar opener
- * brings it back. The chosen state is persisted in a cookie, so the server
- * renders the right width on first paint and the choice survives reload (no
- * localStorage). Mobile: the sidebar is a slide-over drawer opened by the topbar
- * hamburger — it closes on navigation and on Escape, traps focus while open, and
+ * The sidebar is the only navigation. Desktop has a three-state sidebar —
+ * EXPANDED (w-64, glyphs + labels), ICON RAIL (icons only, focusable tooltips),
+ * or HIDDEN. The single top-left hamburger CYCLES those three (expanded → rail →
+ * hidden → expanded); the hamburger + brand stay visible in every state. The
+ * chosen state persists in a cookie, so the server renders the right width on
+ * first paint and the choice survives reload (no localStorage, no flash).
+ *
+ * Mobile: the sidebar is a slide-over drawer opened by the same top-left
+ * hamburger; it closes on navigation and on Escape, traps focus while open, and
  * its controls are keyboard-operable. All transitions are suppressed under
  * prefers-reduced-motion (motion-safe).
  */
@@ -85,7 +74,7 @@ export function ShellChrome({ sections, user, signOut, initialSidebar, children 
   const [sidebar, setSidebar] = useState<SidebarState>(initialSidebar);
   const pathname = usePathname();
   const drawerRef = useRef<HTMLDivElement>(null);
-  const openerRef = useRef<HTMLButtonElement>(null);
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
@@ -96,12 +85,15 @@ export function ShellChrome({ sections, user, signOut, initialSidebar, children 
     document.cookie = `${SIDEBAR_COOKIE}=${next}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; samesite=lax`;
   }, []);
 
-  // The chevron cycles expanded ↔ rail (the two visible widths); the separate
-  // hide/show controls move to/from hidden.
-  const toggleRail = useCallback(
-    () => persistSidebar(sidebar === "expanded" ? "rail" : "expanded"),
-    [sidebar, persistSidebar],
-  );
+  // Desktop: the hamburger cycles expanded → rail → hidden → expanded.
+  // Mobile (< lg): the same hamburger opens the slide-over drawer instead.
+  const onHamburger = useCallback(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      persistSidebar(nextSidebarState(sidebar));
+    } else {
+      setDrawerOpen(true);
+    }
+  }, [sidebar, persistSidebar]);
 
   const collapsed = sidebar === "rail";
 
@@ -112,7 +104,7 @@ export function ShellChrome({ sections, user, signOut, initialSidebar, children 
 
   // While the drawer is open: lock body scroll, close on Escape, trap focus
   // inside the panel, and move focus into it. On close, return focus to the
-  // opener. All wired only when open so there's no idle global listener.
+  // hamburger. All wired only when open so there's no idle global listener.
   useEffect(() => {
     if (!drawerOpen) return;
 
@@ -157,93 +149,34 @@ export function ShellChrome({ sections, user, signOut, initialSidebar, children 
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = overflow;
-      // Restore focus to the opener (falls back to the stored element).
-      (openerRef.current ?? previouslyFocused)?.focus();
+      // Restore focus to the hamburger (falls back to the stored element).
+      (hamburgerRef.current ?? previouslyFocused)?.focus();
     };
   }, [drawerOpen]);
-
-  // The sidebar inner content — brand + nav + (desktop only) the foot controls —
-  // shared by the desktop rail and the mobile drawer so they never drift. The
-  // brand sits at the top and is the only brand instance in the shell; the
-  // account identity lives in the top-right menu. The drawer adds a close
-  // affordance beside the brand (it has no topbar) and never shows the desktop
-  // collapse/hide controls.
-  function SidebarBody({ inDrawer }: { inDrawer: boolean }) {
-    // The drawer always renders fully expanded; only the desktop rail collapses.
-    const railed = !inDrawer && collapsed;
-    return (
-      <div className={`flex h-full flex-col gap-6 ${railed ? "p-3" : "p-4"}`}>
-        <div className={`flex items-center ${railed ? "justify-center" : "justify-between"}`}>
-          <BrandGlyph collapsed={railed} />
-          {inDrawer ? (
-            <button
-              type="button"
-              onClick={closeDrawer}
-              className={`${railBtn} h-9 w-9`}
-              aria-label="Close menu"
-            >
-              <CloseIcon />
-            </button>
-          ) : null}
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          <SidebarNav
-            sections={sections}
-            collapsed={railed}
-            onNavigate={inDrawer ? closeDrawer : undefined}
-          />
-        </div>
-
-        {/* Desktop foot controls: cycle expanded↔rail, plus a hide affordance.
-            Absent from the mobile drawer (which has its own close button). */}
-        {!inDrawer ? (
-          <div
-            className={`flex items-center gap-1 border-t border-[var(--border)] pt-3 ${
-              railed ? "flex-col" : "justify-between"
-            }`}
-          >
-            <button
-              type="button"
-              onClick={toggleRail}
-              className={`${railBtn} h-9 ${railed ? "w-9" : "flex-1 gap-2 px-3 text-sm font-medium"}`}
-              aria-label={railed ? "Expand sidebar" : "Collapse to icons"}
-              title={railed ? "Expand sidebar" : "Collapse to icons"}
-            >
-              <CollapseIcon pointing={railed ? "right" : "left"} />
-              {!railed ? <span>Collapse</span> : null}
-            </button>
-            <button
-              type="button"
-              onClick={() => persistSidebar("hidden")}
-              className={`${railBtn} h-9 w-9`}
-              aria-label="Hide sidebar"
-              title="Hide sidebar"
-            >
-              <CloseIcon />
-            </button>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
 
   const railWidth = collapsed ? "w-[4.5rem]" : "w-64";
   const contentPad = sidebar === "hidden" ? "" : collapsed ? "lg:pl-[4.5rem]" : "lg:pl-64";
 
   return (
     <div className="app-surface min-h-screen">
-      {/* Desktop sidebar: fixed, full height. Width follows the state; hidden
-          removes it from the layout (the topbar opener brings it back). */}
+      {/* Desktop sidebar: fixed, full height, below the floating top-left
+          cluster. Width follows the state; `hidden` removes it from the layout
+          (the hamburger cycles it back). The nav scrolls; the brand is NOT here
+          (it lives in the always-visible top-left cluster). */}
       {sidebar !== "hidden" ? (
         <aside
-          className={`fixed inset-y-0 left-0 z-40 hidden border-r border-[var(--border)] bg-[var(--surface)] lg:block ${railWidth}`}
+          className={`fixed inset-y-0 left-0 z-30 hidden border-r border-[var(--border)] bg-[var(--surface)] pt-16 lg:block ${railWidth}`}
         >
-          <SidebarBody inDrawer={false} />
+          <div className={`flex h-full flex-col ${collapsed ? "p-3" : "p-4"}`}>
+            <div className="flex-1 overflow-y-auto">
+              <SidebarNav sections={sections} collapsed={collapsed} />
+            </div>
+          </div>
         </aside>
       ) : null}
 
-      {/* Mobile drawer: slide-over + scrim. Mounted only when open. */}
+      {/* Mobile drawer: slide-over + scrim. Mounted only when open. Carries its
+          own brand + close button (it has no shared top cluster). */}
       {drawerOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
           <div
@@ -255,53 +188,55 @@ export function ShellChrome({ sections, user, signOut, initialSidebar, children 
             ref={drawerRef}
             className="absolute inset-y-0 left-0 w-72 max-w-[85%] border-r border-[var(--border)] bg-[var(--surface)] shadow-xl motion-safe:animate-[drawerIn_0.2s_ease-out]"
           >
-            <SidebarBody inDrawer />
+            <div className="flex h-full flex-col gap-6 p-4">
+              <div className="flex items-center justify-between">
+                <BrandGlyph />
+                <button
+                  type="button"
+                  onClick={closeDrawer}
+                  className={`${ctrlBtn} h-9 w-9`}
+                  aria-label="Close menu"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <SidebarNav sections={sections} collapsed={false} onNavigate={closeDrawer} />
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
 
-      {/* Content column, offset by the fixed sidebar width on desktop. */}
+      {/* Floating top-LEFT cluster: hamburger immediately left of the brand,
+          always visible in every sidebar state and on every breakpoint. The
+          hamburger cycles the desktop sidebar (expanded→rail→hidden) and opens
+          the drawer on mobile; the brand links home. Not part of any bar. */}
+      <div className="fixed left-3 top-3 z-40 flex items-center gap-2 sm:left-4 sm:top-4">
+        <button
+          ref={hamburgerRef}
+          type="button"
+          onClick={onHamburger}
+          className={`${ctrlBtn} h-9 w-9 bg-[var(--surface)]`}
+          aria-label="Toggle navigation"
+          aria-expanded={drawerOpen}
+        >
+          <MenuIcon />
+        </button>
+        <BrandGlyph />
+      </div>
+
+      {/* Floating top-RIGHT control: the account avatar menu. A small fixed
+          element over the content (not a full-width bar). */}
+      <div className="fixed right-3 top-3 z-40 sm:right-4 sm:top-4">
+        <AccountMenu name={user.name} email={user.email} signOut={signOut} />
+      </div>
+
+      {/* Content column, offset by the fixed sidebar width on desktop. Top
+          padding clears the floating top clusters so no page content sits under
+          the hamburger/brand or the avatar at any breakpoint. */}
       <div className={`flex min-h-screen flex-col ${contentPad}`}>
-        {/* Thin topbar: no page nav (the sidebar is the only nav). On mobile the
-            hamburger opens the drawer; on desktop, when the sidebar is hidden, a
-            matching opener brings it back. On every breakpoint the account menu
-            sits top-right. The flex spacer keeps the avatar right. */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_85%,transparent)] px-4 backdrop-blur-md sm:px-6">
-          {/* Mobile only: opens the slide-over drawer. */}
-          <button
-            ref={openerRef}
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className={`${railBtn} h-9 w-9 lg:hidden`}
-            aria-label="Open menu"
-            aria-expanded={drawerOpen}
-          >
-            <MenuIcon />
-          </button>
-
-          {/* Desktop only, and only when the sidebar is hidden: bring it back. */}
-          {sidebar === "hidden" ? (
-            <button
-              type="button"
-              onClick={() => persistSidebar("expanded")}
-              className={`${railBtn} hidden h-9 w-9 lg:inline-flex`}
-              aria-label="Show sidebar"
-              title="Show sidebar"
-            >
-              <MenuIcon />
-            </button>
-          ) : null}
-
-          <div className="flex-1" aria-hidden="true" />
-
-          <AccountMenu
-            name={user.name}
-            email={user.email}
-            signOut={signOut}
-          />
-        </header>
-
-        <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
+        <main className="flex-1 px-4 pb-8 pt-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-5xl">{children}</div>
         </main>
       </div>

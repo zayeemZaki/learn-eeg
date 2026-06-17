@@ -10,7 +10,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
-import { DeleteAtlasButton } from "@/components/admin/delete-atlas-button";
 import { ATLAS_CATEGORY_LABELS } from "@/lib/validations/atlas";
 
 export const metadata = { title: "Atlas" };
@@ -47,9 +46,11 @@ function CategoryBadge({ category }: { category: AtlasCategory }) {
 
 /**
  * Admin atlas list: every entry with a thumbnail (the shared EEG frame), title,
- * category badge, and a description preview, plus per-row Edit/Delete and a
- * "New entry" button. A SegmentedTabs strip filters by category (All | Normal |
- * Abnormal) via the URL; the list renders through the shared DataTable.
+ * category badge, and a description preview, plus a "New entry" button. The whole
+ * row links to the editor; deletion now lives on that edit page (a trash-icon
+ * "Danger zone"), so the list carries no per-row delete. A SegmentedTabs strip
+ * filters by category (All | Normal | Abnormal) via the URL; the list renders
+ * through the shared DataTable.
  *
  * One query: a single findMany, optionally narrowed by the category filter and
  * ordered by title. Counts for the tab badges come from a cheap groupBy so the
@@ -119,19 +120,6 @@ export default async function AdminAtlasPage({
         <span className="line-clamp-2 text-[var(--muted)]">{entry.description}</span>
       ),
     },
-    {
-      // Row-click opens the editor (see rowHref); Delete stays an explicit
-      // control, lifted above the row's overlay link so a row-click never
-      // triggers a delete.
-      header: "Delete",
-      align: "right",
-      headerSrOnly: true,
-      cell: (entry) => (
-        <div className="relative z-10 flex items-center justify-end">
-          <DeleteAtlasButton id={entry.id} />
-        </div>
-      ),
-    },
   ];
 
   return (
@@ -164,9 +152,9 @@ export default async function AdminAtlasPage({
           rowHref={(entry) => `/admin/atlas/${entry.id}/edit`}
           rowLabel={(entry) => `Edit ${entry.title}`}
           renderCard={(entry) => (
-            // The card body is the tap target → edit; the Delete control is a
-            // sibling outside the link so a card tap never deletes.
-            <Card className="flex flex-col gap-3">
+            // The whole card is the tap target → edit; deletion lives on the
+            // edit page, so the card carries no delete control.
+            <Card>
               <Link
                 href={`/admin/atlas/${entry.id}/edit`}
                 aria-label={`Edit ${entry.title}`}
@@ -179,9 +167,6 @@ export default async function AdminAtlasPage({
                 </div>
                 <p className="line-clamp-3 text-sm text-[var(--muted)]">{entry.description}</p>
               </Link>
-              <div className="flex items-center justify-end border-t border-[var(--border)] pt-3">
-                <DeleteAtlasButton id={entry.id} />
-              </div>
             </Card>
           )}
         />

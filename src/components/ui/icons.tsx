@@ -59,3 +59,12 @@ export function ChevronLeftIcon({ className = "h-4 w-4" }: IconProps) {
     </svg>
   );
 }
+
+/** Trash bin — destructive delete affordance (admin edit "Danger zone"). */
+export function TrashIcon({ className = "h-4 w-4 shrink-0" }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
+      <path d="M3 4.5h10M6.5 4.5V3.25A.75.75 0 017.25 2.5h1.5a.75.75 0 01.75.75V4.5M4.5 4.5l.5 8a1 1 0 001 .95h4a1 1 0 001-.95l.5-8M6.75 7v4M9.25 7v4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

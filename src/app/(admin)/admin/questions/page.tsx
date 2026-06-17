@@ -8,7 +8,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { ImageIcon } from "@/components/ui/icons";
-import { DeleteQuestionButton } from "@/components/admin/delete-question-button";
 
 export const metadata = { title: "Questions" };
 
@@ -23,9 +22,11 @@ interface QuestionRow {
 
 /**
  * Admin questions list: every question with a stem preview, option count,
- * has-image indicator, and attempt count, plus per-row Edit/Delete and a
- * "New question" button. Now rendered through the shared DataTable (stacked
- * cards on mobile, a scrollable table from sm up).
+ * has-image indicator, and attempt count, plus a "New question" button. The
+ * whole row links to the editor; deletion now lives on that edit page (a
+ * trash-icon "Danger zone"), so the list carries no per-row delete. Rendered
+ * through the shared DataTable (stacked cards on mobile, a scrollable table from
+ * sm up).
  *
  * Two queries, no N+1: one findMany with a `_count` of choices, and one groupBy
  * that counts attempts per question, joined in memory via a Map. Reading
@@ -84,19 +85,6 @@ export default async function AdminQuestionsPage() {
     { header: "Image", align: "center", cell: imageCell },
     { header: "Attempts", align: "right", cell: (q) => <span className="tabular-nums">{q.attempts}</span> },
     { header: "Difficulty", align: "right", cell: (q) => <span className="tabular-nums">{q.difficulty}</span> },
-    {
-      // Row-click opens the editor (see rowHref); Delete stays an explicit
-      // control, lifted above the row's overlay link so a row-click never
-      // triggers a delete.
-      header: "Delete",
-      align: "right",
-      headerSrOnly: true,
-      cell: (q) => (
-        <div className="relative z-10 flex items-center justify-end">
-          <DeleteQuestionButton id={q.id} />
-        </div>
-      ),
-    },
   ];
 
   return (
@@ -121,9 +109,9 @@ export default async function AdminQuestionsPage() {
           rowHref={(q) => `/admin/questions/${q.id}/edit`}
           rowLabel={(q) => `Edit question: ${q.stem}`}
           renderCard={(q) => (
-            // The card body is the tap target → edit; the Delete control is a
-            // sibling outside the link so a card tap never deletes.
-            <Card className="flex flex-col gap-3">
+            // The whole card is the tap target → edit; deletion lives on the
+            // edit page, so the card carries no delete control.
+            <Card>
               <Link
                 href={`/admin/questions/${q.id}/edit`}
                 aria-label={`Edit question: ${q.stem}`}
@@ -141,9 +129,6 @@ export default async function AdminQuestionsPage() {
                   ) : null}
                 </div>
               </Link>
-              <div className="flex items-center justify-end border-t border-[var(--border)] pt-3">
-                <DeleteQuestionButton id={q.id} />
-              </div>
             </Card>
           )}
         />

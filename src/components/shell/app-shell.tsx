@@ -58,15 +58,15 @@ const ADMIN: NavSection = {
  * pieces to the single ShellChrome client island.
  *
  * Both shells show the same primary nav; admins additionally get the admin
- * section, which is how they move between the app and admin areas (no separate
- * topbar affordance). The topbar carries no page nav — the sidebar is the only
- * navigation.
+ * section, which is how they move between the app and admin areas. There is no
+ * topbar — the sidebar is the only navigation, with a floating hamburger + brand
+ * top-left and the account menu top-right.
  *
  * The desktop sidebar's chosen state (expanded / icon rail / hidden) is read
  * here from a cookie so the server renders the correct width on first paint —
- * the toggle writes the same cookie client-side, so the choice survives reload
- * with no localStorage and no hydration flash. Stays async (cookies() is async
- * in Next 16) but introduces no new fetch.
+ * the top-left hamburger writes the same cookie client-side, so the choice
+ * survives reload with no localStorage and no hydration flash. Stays async
+ * (cookies() is async in Next 16) but introduces no new fetch.
  */
 export async function AppShell({ role, userName, userEmail, signOut, children }: AppShellProps) {
   const isAdmin = role === "ADMIN";

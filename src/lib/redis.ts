@@ -1,8 +1,9 @@
 /**
- * Optional Redis client (used to cache the PubMed feed).
+ * Optional Redis client (backs the login/register rate-limiter).
  *
- * Returns null when REDIS_URL is unset so the app degrades gracefully to live
- * fetching rather than failing. Same singleton pattern as the Prisma client.
+ * Returns null when REDIS_URL is unset so the app degrades gracefully — the
+ * rate-limiter then fails open (no limiting) rather than failing. Same singleton
+ * pattern as the Prisma client.
  */
 import Redis from "ioredis";
 import { env } from "@/env";

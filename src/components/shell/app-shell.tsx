@@ -45,6 +45,7 @@ const ADMIN: NavSection = {
     { href: "/admin", label: "Overview", icon: <OverviewIcon />, match: "exact" },
     { href: "/admin/questions", label: "Questions", icon: <QuestionsIcon /> },
     { href: "/admin/atlas", label: "Atlas", icon: <AtlasIcon /> },
+    { href: "/admin/articles", label: "Literature", icon: <LiteratureIcon /> },
     { href: "/admin/users", label: "Users", icon: <UsersIcon /> },
   ],
 };

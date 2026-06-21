@@ -11,7 +11,6 @@ const schema = z.object({
   DATABASE_URL: z.string().url(),
   AUTH_SECRET: z.string().min(1, "AUTH_SECRET is required"),
   REDIS_URL: z.string().url().optional(),
-  PUBMED_API_KEY: z.string().optional(),
   // Optional so the app still boots without Blob configured; the admin upload
   // route returns a clear runtime error if it's missing when an upload starts.
   BLOB_READ_WRITE_TOKEN: z.string().optional(),

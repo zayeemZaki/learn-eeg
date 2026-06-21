@@ -209,3 +209,26 @@ model AtlasEntry {
 
   @@index([category])
 }
+
+// ── Literature ────────────────────────────────────────────────────────────────
+
+// An admin-authored literature article. Replaces the former live PubMed feed:
+// articles are now content authored in-app (admin CRUD, students read), modelled
+// like AtlasEntry — a FLAT scalar row with no relations and no inbound FKs, so
+// create/update are single writes and delete is a plain delete. Self-contained
+// (title + summary) with an OPTIONAL external link-out (url) and OPTIONAL figure
+// (imageUrl). publishedAt is a free-form string so partial dates ("2024 Mar")
+// are allowed without a date picker. Listed newest-first, hence @@index(createdAt).
+model Article {
+  id          String   @id @default(cuid())
+  title       String   // required headline
+  summary     String   // required teaching summary / abstract (text)
+  url         String?  // optional external link-out (PubMed / journal)
+  source      String?  // optional journal / publisher
+  publishedAt String?  // optional free-form date string (e.g. "2024 Mar")
+  imageUrl    String?  // optional figure (reuses the single EegImageUpload)
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

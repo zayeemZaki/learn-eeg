@@ -134,12 +134,9 @@ model VerificationToken {
 
 model Question {
   id          String           @id @default(cuid())
+  number      Int              @unique @default(autoincrement())
   stem        String           // the clinical prompt
   explanation String           // teaching point shown after answering
-  // DEPRECATED: superseded by the `images` relation (one-to-many QuestionImage).
-  // Kept this pass as a back-compat mirror so existing data survives the migration;
-  // a later pass backfills, stops reading it, then drops the column. New questions
-  // leave this null — author images via QuestionImage instead.
   imageUrl    String?          // optional EEG trace (deprecated — see `images`)
   difficulty  Int              @default(1) // 1=easy ... 3=hard
   category    QuestionCategory @default(OTHER) // clinical topic; OTHER for legacy rows

@@ -26,6 +26,7 @@ export default async function QuestionDetailPage({
     where: { id },
     select: {
       id: true,
+      number: true, // stable ordinal — surfaced as "Question #N" (just an ordinal)
       stem: true,
       choices: { select: { id: true, text: true } },
       images: {
@@ -51,6 +52,7 @@ export default async function QuestionDetailPage({
   // can't ride along; images carry only { url, alt }.
   const clientQuestion: ClientQuestion = {
     id: question.id,
+    number: question.number,
     stem: question.stem,
     choices: question.choices,
     images: question.images,
@@ -70,7 +72,11 @@ export default async function QuestionDetailPage({
       ) : null}
 
       <Card>
-        <p className="text-base font-medium leading-relaxed">{clientQuestion.stem}</p>
+        {/* Stable, system-assigned ordinal — read-only, just a "Question #N" label. */}
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          Question #{clientQuestion.number}
+        </p>
+        <p className="mt-1 text-base font-medium leading-relaxed">{clientQuestion.stem}</p>
         {/* Gallery + click-to-zoom lightbox; renders nothing when there are no images. */}
         <QuestionGallery images={clientQuestion.images} />
       </Card>

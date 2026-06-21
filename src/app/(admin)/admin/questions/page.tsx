@@ -13,6 +13,7 @@ export const metadata = { title: "Questions" };
 
 interface QuestionRow {
   id: string;
+  number: number;
   stem: string;
   imageCount: number;
   choices: number;
@@ -38,6 +39,7 @@ export default async function AdminQuestionsPage() {
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
+        number: true, // stable ordinal, shown as "#N" (system-assigned, read-only)
         stem: true,
         difficulty: true,
         // Count both relations: choices (unchanged) and images (gallery).
@@ -53,6 +55,7 @@ export default async function AdminQuestionsPage() {
 
   const rows: QuestionRow[] = questions.map((q) => ({
     id: q.id,
+    number: q.number,
     stem: q.stem,
     imageCount: q._count.images,
     choices: q._count.choices,
@@ -77,6 +80,13 @@ export default async function AdminQuestionsPage() {
     );
 
   const columns: Column<QuestionRow>[] = [
+    {
+      header: "#",
+      align: "right",
+      cell: (q) => (
+        <span className="tabular-nums text-[var(--muted)]">#{q.number}</span>
+      ),
+    },
     {
       header: "Question",
       className: "max-w-md",
@@ -120,7 +130,10 @@ export default async function AdminQuestionsPage() {
                 aria-label={`Edit question: ${q.stem}`}
                 className="-m-1 flex flex-col gap-3 rounded-lg p-1 outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
-                <p className="line-clamp-3 text-sm font-medium text-[var(--foreground)]">{q.stem}</p>
+                <p className="line-clamp-3 text-sm font-medium text-[var(--foreground)]">
+                  <span className="tabular-nums text-[var(--muted)]">#{q.number}</span>{" "}
+                  {q.stem}
+                </p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
                   <span className="tabular-nums">{q.choices} options</span>
                   <span className="tabular-nums">{q.attempts} attempts</span>

@@ -33,9 +33,24 @@ export default async function QuestionDetailPage({
         select: { url: true, alt: true },
         orderBy: { position: "asc" },
       },
+      // DEPRECATED legacy single-image column, selected ONLY to synthesize a
+      // fallback gallery entry below for questions authored before the multi-image
+      // cutover (relation empty, legacy column set). It is never shipped as a raw
+      // client field — it's consumed only to build `images` — so the boundary is
+      // unchanged. Remove this once the column is dropped.
+      imageUrl: true,
     },
   });
   if (!question) notFound();
+
+  // Build the gallery images from the relation. During the deprecation window a
+  // legacy-only question may have an empty relation but a populated imageUrl — in
+  // that case synthesize a single fallback entry so no image silently disappears.
+  // (New data lives entirely in the relation, so this branch is dead for it.)
+  const images =
+    question.images.length === 0 && question.imageUrl
+      ? [{ url: question.imageUrl, alt: null }]
+      : question.images;
 
   // Whether this user answered in a prior session — for the "Previously
   // answered" badge only. One cheap existence check; it does not gate answering
@@ -49,13 +64,14 @@ export default async function QuestionDetailPage({
 
   // Explicit client shape — guarantees no extra fields leak across the boundary.
   // Every field is named explicitly (never a spread), so isCorrect / explanation
-  // can't ride along; images carry only { url, alt }.
+  // can't ride along; images carry only { url, alt } (the legacy imageUrl is
+  // consumed only to build `images` above, never shipped as a raw field).
   const clientQuestion: ClientQuestion = {
     id: question.id,
     number: question.number,
     stem: question.stem,
     choices: question.choices,
-    images: question.images,
+    images,
   };
 
   return (

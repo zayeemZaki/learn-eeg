@@ -42,6 +42,9 @@ export default async function AdminQuestionsPage() {
         number: true, // stable ordinal, shown as "#N" (system-assigned, read-only)
         stem: true,
         difficulty: true,
+        // Legacy single-image column — selected so a legacy-only question still
+        // counts as 1 image during the deprecation window (see imageCount below).
+        imageUrl: true,
         // Count both relations: choices (unchanged) and images (gallery).
         _count: { select: { choices: true, images: true } },
       },
@@ -57,7 +60,9 @@ export default async function AdminQuestionsPage() {
     id: q.id,
     number: q.number,
     stem: q.stem,
-    imageCount: q._count.images,
+    // Relation count, floored at 1 for a legacy-only question (empty relation +
+    // populated legacy imageUrl) so the count matches what the answer page shows.
+    imageCount: q._count.images > 0 ? q._count.images : q.imageUrl ? 1 : 0,
     choices: q._count.choices,
     difficulty: q.difficulty,
     attempts: attemptsByQuestion.get(q.id) ?? 0,

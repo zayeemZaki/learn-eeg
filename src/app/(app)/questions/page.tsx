@@ -41,11 +41,14 @@ export default async function QuestionsPage({
     db.question.findMany({
       orderBy: { createdAt: "asc" },
       // Count images (the gallery relation) for the "N EEG images" indicator,
-      // replacing the legacy single-imageUrl boolean.
+      // replacing the legacy single-imageUrl boolean. imageUrl is also selected so
+      // a legacy-only question (empty relation, populated legacy column) still
+      // counts as 1 during the deprecation window — see imageCount below.
       select: {
         id: true,
         number: true, // stable ordinal, shown as "#N"
         stem: true,
+        imageUrl: true,
         _count: { select: { images: true } },
       },
     }),
@@ -70,7 +73,9 @@ export default async function QuestionsPage({
     id: q.id,
     number: q.number,
     stem: q.stem,
-    imageCount: q._count.images,
+    // Relation count, but never below 1 for a legacy-only question (empty
+    // relation + populated legacy imageUrl) so the indicator matches the loader.
+    imageCount: q._count.images > 0 ? q._count.images : q.imageUrl ? 1 : 0,
     answered: answeredById.has(q.id),
     anyCorrect: answeredById.get(q.id) ?? null,
   }));

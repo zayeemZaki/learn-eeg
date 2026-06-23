@@ -34,6 +34,9 @@ const proxyAuthConfig = {
   },
   session: {
     strategy: "jwt",
+    // Mirror auth.config.ts: bound the stale-JWT window to 7 days (Auth.js
+    // defaults to 30). Keep in lockstep with auth.config.ts.
+    maxAge: 7 * 24 * 60 * 60, // 7 days
   },
   providers: [], // concrete providers are added in auth.ts, never in the proxy
   callbacks: {

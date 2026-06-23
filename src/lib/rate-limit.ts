@@ -45,6 +45,17 @@ export const REGISTER_RULE: RateLimitRule = {
 };
 
 /**
+ * Forgot-password: throttle reset-email requests from one source. The existing
+ * per-email throttle only collapses repeats of the SAME address; this caps an
+ * attacker spraying many distinct addresses (email-bomb / Resend-quota abuse).
+ */
+export const FORGOT_PASSWORD_RULE: RateLimitRule = {
+  name: "forgot-password",
+  limit: 5,
+  windowSeconds: 60 * 60, // 5 reset requests / hour per IP
+};
+
+/**
  * Best-effort client IP from request headers. On Vercel the first hop of
  * `x-forwarded-for` is the real client; `x-real-ip` is a fallback. When neither
  * is present (e.g. local dev) we use a constant bucket so the limiter still

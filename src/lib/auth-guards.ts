@@ -17,12 +17,33 @@ import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 
-/** Throws unless the caller is signed in. Returns the session. */
+/**
+ * Throws unless the caller is signed in AND their account still exists. Returns
+ * the session.
+ *
+ * The session id comes from the JWT minted at login, which outlives the row it
+ * names: an account deleted out-of-band keeps a valid token until it expires, so
+ * a token check alone would let a deleted user keep acting (e.g. recording
+ * attempts) against a ghost identity. So after the cheap token check we confirm
+ * the user still EXISTS in the database (one indexed lookup by id, selecting only
+ * { id }) — mirroring requireAdmin's stale-JWT defence. The returned session is
+ * unchanged, so all existing call sites keep working.
+ */
 export async function requireUser(): Promise<Session> {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
+
+  // Stale-JWT defence: confirm the account still exists in the database.
+  const current = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true },
+  });
+  if (!current) {
+    throw new Error("Unauthorized");
+  }
+
   return session;
 }
 

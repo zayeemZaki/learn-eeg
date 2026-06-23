@@ -22,6 +22,9 @@ export const authConfig = {
   },
   session: {
     strategy: "jwt",
+    // Bound every stale-JWT window (role/email/account-existence drift) to a week
+    // rather than Auth.js's 30-day default. Mirrored in proxy.ts — keep in lockstep.
+    maxAge: 7 * 24 * 60 * 60, // 7 days
   },
   providers: [], // concrete providers are added in auth.ts
   callbacks: {

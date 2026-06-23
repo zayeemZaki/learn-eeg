@@ -28,6 +28,7 @@ import { env } from "@/env";
 import { db } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { hashPassword } from "@/lib/password";
+import { rateLimit, FORGOT_PASSWORD_RULE } from "@/lib/rate-limit";
 import {
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -53,6 +54,14 @@ function hashToken(rawToken: string): string {
  * endpoint can't be used to discover which emails are registered.
  */
 export async function requestPasswordReset(raw: unknown): Promise<ActionResult> {
+  // Per-IP throttle to blunt reset-email spraying across many addresses (the
+  // per-email throttle below only covers repeats of one address). FAIL-OPEN: with
+  // no Redis (or on any Redis error) this allows the request. On limit we return
+  // the SAME generic success the flow always returns — a throttled request must be
+  // indistinguishable from a normal one (no enumeration / limit-state oracle).
+  const { allowed } = await rateLimit(FORGOT_PASSWORD_RULE);
+  if (!allowed) return { ok: true };
+
   const parsed = forgotPasswordSchema.safeParse(raw);
   // Even a malformed email gets the generic success: revealing "invalid email"
   // vs "sent" is itself a (weak) oracle, and the form already validates shape.

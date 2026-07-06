@@ -13,6 +13,11 @@
  * plain delete with no cascade footgun (unlike Question, whose Choices and
  * Attempts had to be reconciled).
  *
+ * BLOB CLEANUP: mirrors Article's — when the image URL changes on update, or
+ * on delete, the OLD Blob object is removed via deleteBlobs AFTER the DB write
+ * commits. deleteBlobs never throws, so a Blob failure can't fail the request
+ * (a leaked object is recoverable; a failed user action is worse).
+ *
  * After any mutation we revalidate the admin list AND both PUBLIC atlas tabs so
  * the change is reflected everywhere immediately.
  */
@@ -21,6 +26,7 @@ import { redirect } from "next/navigation";
 
 import { requireAdmin } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
+import { deleteBlobs } from "@/lib/blob-cleanup";
 import { atlasEntrySchema, type AtlasEntryInput } from "@/lib/validations/atlas";
 import { type ActionResult } from "@/app/actions/admin-questions";
 
@@ -61,6 +67,9 @@ export async function createAtlasEntry(
 /**
  * Update an atlas entry's scalar fields. Redirects to the admin list on success;
  * returns a field-style error on validation failure or a missing entry.
+ *
+ * If the image changed (a different URL), the OLD Blob object is cleaned up
+ * AFTER the update commits.
  */
 export async function updateAtlasEntry(
   id: string,
@@ -74,9 +83,10 @@ export async function updateAtlasEntry(
   }
   const { title, category, description, imageUrl } = parsed.data;
 
+  // Read the current image so we can clean up the old Blob if it changes.
   const existing = await db.atlasEntry.findUnique({
     where: { id },
-    select: { id: true },
+    select: { id: true, imageUrl: true },
   });
   if (!existing) return { ok: false, error: "Atlas entry not found" };
 
@@ -91,18 +101,32 @@ export async function updateAtlasEntry(
     return { ok: false, error: "Could not save changes. Please try again." };
   }
 
+  // The DB is now the source of truth. If the image URL changed, clean up the
+  // now-orphaned old Blob — AFTER commit, best-effort.
+  if (existing.imageUrl && existing.imageUrl !== imageUrl) {
+    await deleteBlobs([existing.imageUrl]);
+  }
+
   revalidateAtlasViews();
   redirect("/admin/atlas");
 }
 
 /**
  * Delete an atlas entry. No inbound foreign keys reference AtlasEntry, so this
- * is a straightforward delete — no cascade and no dangling-reference risk.
+ * is a straightforward delete — no cascade and no dangling-reference risk. Its
+ * image Blob (if any) is cleaned up AFTER the row is gone.
  */
 export async function deleteAtlasEntry(id: string): Promise<ActionResult> {
   await requireAdmin();
 
   if (!id) return { ok: false, error: "Missing atlas entry id" };
+
+  // Capture the image URL first — once the row is deleted we'd have no way to
+  // find it for cleanup.
+  const existing = await db.atlasEntry.findUnique({
+    where: { id },
+    select: { imageUrl: true },
+  });
 
   try {
     await db.atlasEntry.delete({ where: { id } });
@@ -110,6 +134,9 @@ export async function deleteAtlasEntry(id: string): Promise<ActionResult> {
     console.error("deleteAtlasEntry failed:", error);
     return { ok: false, error: "Could not delete the atlas entry." };
   }
+
+  // After-commit Blob cleanup (best-effort, never fails the request).
+  if (existing?.imageUrl) await deleteBlobs([existing.imageUrl]);
 
   revalidateAtlasViews();
   return { ok: true };

@@ -19,10 +19,15 @@ import { questionSchema, type QuestionInput } from "@/lib/validations/question";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
-/** Drop the caches that show questions: the admin list and the public list. */
-function revalidateQuestionViews() {
+/**
+ * Drop the caches that show questions: the admin list, the public list, and
+ * (when the question id is known) its own public detail page — otherwise an
+ * edit or delete can leave a cached /questions/[id] page stale.
+ */
+function revalidateQuestionViews(id?: string) {
   revalidatePath("/admin/questions");
   revalidatePath("/questions");
+  if (id) revalidatePath(`/questions/${id}`);
 }
 
 /**
@@ -38,7 +43,7 @@ export async function createQuestion(raw: QuestionInput): Promise<ActionResult> 
   }
   const { stem, explanation, difficulty, category, choices, images } = parsed.data;
 
-  await db.question.create({
+  const created = await db.question.create({
     data: {
       stem,
       explanation,
@@ -60,7 +65,7 @@ export async function createQuestion(raw: QuestionInput): Promise<ActionResult> 
     },
   });
 
-  revalidateQuestionViews();
+  revalidateQuestionViews(created.id);
   redirect("/admin/questions");
 }
 
@@ -202,7 +207,7 @@ export async function updateQuestion(
   // save (a leaked object is recoverable; a failed user action is worse).
   await deleteBlobs(removedImageUrls);
 
-  revalidateQuestionViews();
+  revalidateQuestionViews(id);
   redirect("/admin/questions");
 }
 
@@ -240,6 +245,6 @@ export async function deleteQuestion(id: string): Promise<ActionResult> {
   // After-commit Blob cleanup (best-effort, never fails the request).
   await deleteBlobs(imageUrls);
 
-  revalidateQuestionViews();
+  revalidateQuestionViews(id);
   return { ok: true };
 }

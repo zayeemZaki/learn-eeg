@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckIcon, CrossIcon } from "@/components/ui/icons";
 
-// The client only ever receives choice id + text. Whether a choice is correct,
-// and the explanation, come back from the server *after* answering — never in
-// the props below. (Mirrors the select in the detail page's loader.)
+// The client only ever receives choice id + text for an UNANSWERED question.
+// Whether a choice is correct, and the explanation, come back from the server
+// either in `priorAnswer` (already answered, loaded server-side) or from
+// submitAnswer's response (answering now) — never as a raw field on `choices`.
 export interface ClientChoice {
   id: string;
   text: string;
@@ -19,6 +20,13 @@ export interface ClientImage {
   url: string;
   alt: string | null;
 }
+/** The result of a prior Attempt, loaded server-side for an already-answered question. */
+export interface PriorAnswer {
+  selectedChoiceId: string;
+  isCorrect: boolean;
+  correctChoiceId: string;
+  explanation: string;
+}
 export interface ClientQuestion {
   id: string;
   /** Stable, system-assigned ordinal shown as "Question #N". Just an ordinal. */
@@ -26,6 +34,8 @@ export interface ClientQuestion {
   stem: string;
   choices: ClientChoice[];
   images: ClientImage[];
+  /** Non-null when this user already has a recorded Attempt for this question. */
+  priorAnswer: PriorAnswer | null;
 }
 
 // Positional option letters (a, b, c, …) by render order. These are purely
@@ -37,26 +47,36 @@ function optionLetter(index: number): string {
 }
 
 /**
- * Answers a single question with a two-step commit:
+ * Answers a single question with a single-attempt commit:
  *
  *  1. SELECT — clicking (or keyboard-selecting) a choice only highlights it.
  *     No server call, nothing revealed. The choice group is a radiogroup:
  *     arrow keys move the selection, Space/Enter confirm focus selection.
  *  2. SUBMIT — the "Submit answer" button (enabled once a choice is selected)
- *     calls submitAnswer (server logic unchanged); the server decides
- *     correctness and returns the explanation, which the result panel reveals.
- *     Focus moves to that panel.
- *  3. TRY AGAIN — resets to the SELECT state (clears selection + result) so the
- *     user can pick again and resubmit. Each submit records a fresh Attempt (the
- *     action already creates one per call); retries stay allowed — no server
- *     change, no unique constraint.
+ *     calls submitAnswer; the server decides correctness (and rejects a
+ *     second Attempt for this question) and returns the explanation, which
+ *     the result panel reveals. Focus moves to that panel.
+ *
+ * A question can be answered ONCE. If `question.priorAnswer` is present (this
+ * user already has a recorded Attempt, loaded server-side), the result view
+ * renders immediately and the answer form never shows — there is no "try
+ * again" path.
  *
  * The selected choice id is sent only on Submit. Color is never the sole
  * correctness signal — it is always paired with an icon+label marker.
  */
 export function QuestionAnswer({ question }: { question: ClientQuestion }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const [result, setResult] = useState<Extract<AnswerResult, { ok: true }> | null>(null);
+  const [result, setResult] = useState<Extract<AnswerResult, { ok: true }> | null>(
+    question.priorAnswer
+      ? {
+          ok: true,
+          isCorrect: question.priorAnswer.isCorrect,
+          correctChoiceId: question.priorAnswer.correctChoiceId,
+          explanation: question.priorAnswer.explanation,
+        }
+      : null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -66,6 +86,9 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
   const resultRef = useRef<HTMLDivElement | null>(null);
 
   const answered = result !== null;
+  // The choice the user actually picked — from this session's submit, or (on a
+  // fresh load of an already-answered question) from the loaded prior Attempt.
+  const pickedChoiceId = selected ?? question.priorAnswer?.selectedChoiceId ?? null;
 
   // SELECT only — non-destructive, no server call, nothing revealed.
   function select(choiceId: string) {
@@ -74,8 +97,9 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
     setError(null);
   }
 
-  // SUBMIT — commit the selected choice. Server decides correctness; on success
-  // the result panel renders and we move focus to it.
+  // SUBMIT — commit the selected choice. Server decides correctness (and
+  // rejects if this question was already answered); on success the result
+  // panel renders and we move focus to it.
   function submit() {
     if (answered || isPending || !selected) return;
     const choiceId = selected;
@@ -89,16 +113,6 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
         setError(res.error);
       }
     });
-  }
-
-  // TRY AGAIN — reset to the SELECT state so the user can pick again. The prior
-  // Attempt stays recorded server-side; the next submit records another.
-  function tryAgain() {
-    setSelected(null);
-    setResult(null);
-    setError(null);
-    // Return focus to the choice group for keyboard users.
-    requestAnimationFrame(() => optionRefs.current[0]?.focus());
   }
 
   // Radiogroup keyboard model: arrows move the selection (and focus) with wrap,
@@ -146,7 +160,7 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
     if (choiceId === result!.correctChoiceId) {
       return "border-success bg-success-soft text-success";
     }
-    if (choiceId === selected) {
+    if (choiceId === pickedChoiceId) {
       return "border-danger bg-danger-soft text-danger";
     }
     return "border-[var(--border)] opacity-60";
@@ -162,7 +176,7 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
         </Badge>
       );
     }
-    if (choiceId === selected) {
+    if (choiceId === pickedChoiceId) {
       return (
         <Badge variant="subtle" tone="negative" icon={<CrossIcon />} className="ml-3">
           Your answer
@@ -180,7 +194,7 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
         className="flex flex-col gap-3"
       >
         {question.choices.map((choice, index) => {
-          const isSelected = choice.id === selected;
+          const isSelected = choice.id === (answered ? pickedChoiceId : selected);
           const letter = optionLetter(index);
           // Roving tabindex: exactly one option is in the tab order — the
           // selected one, or the first option when nothing is selected yet.
@@ -266,9 +280,6 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
               </p>
               <p className="mt-1 text-sm text-[var(--foreground)]">{result!.explanation}</p>
             </div>
-            <Button className="mt-4" variant="ghost" onClick={tryAgain}>
-              Try again
-            </Button>
           </Card>
         </div>
       ) : null}

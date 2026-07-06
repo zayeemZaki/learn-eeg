@@ -105,8 +105,11 @@ export async function rateLimit(
       return { allowed: true };
     }
     return { allowed: count <= rule.limit };
-  } catch {
-    // Redis down / slow / errored — never block the user over a cache outage.
+  } catch (error) {
+    // Redis down / slow / errored — never block the user over a cache outage,
+    // but log it: a silent failure here means auth rate limiting is invisibly
+    // disabled during an outage.
+    console.error(`rateLimit(${rule.name}) failed, failing open:`, error);
     return { allowed: true };
   }
 }

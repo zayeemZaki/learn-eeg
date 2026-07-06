@@ -4,8 +4,6 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { Badge } from "@/components/ui/badge";
-import { CheckIcon } from "@/components/ui/icons";
 import { QuestionAnswer, type ClientQuestion } from "./question-answer";
 import { QuestionGallery } from "./question-gallery";
 
@@ -17,18 +15,20 @@ export default async function QuestionDetailPage({
 }) {
   const { id } = await params;
 
-  // SECURITY BOUNDARY: choices are selected as { id, text } ONLY. `isCorrect`
-  // is never read here, so it can never be serialized into the client props —
-  // correctness comes back exclusively from submitAnswer after the user answers.
-  // Images are selected ALONGSIDE choices (a separate relation); adding them does
-  // NOT change the choices select, so the boundary is unaffected.
+  // SECURITY BOUNDARY: `choices` carries `isCorrect` here (needed to derive the
+  // correct-choice id for an ALREADY-answered question below), but it is NEVER
+  // shipped raw to the client — `clientQuestion.choices` is rebuilt from an
+  // explicit { id, text } map further down, so `isCorrect` can't leak for an
+  // unanswered question. Images are selected ALONGSIDE choices (a separate
+  // relation); adding them does NOT change the choices select.
   const question = await db.question.findUnique({
     where: { id },
     select: {
       id: true,
       number: true, // stable ordinal — surfaced as "Question #N" (just an ordinal)
       stem: true,
-      choices: { select: { id: true, text: true } },
+      explanation: true,
+      choices: { select: { id: true, text: true, isCorrect: true } },
       images: {
         select: { url: true, alt: true },
         orderBy: { position: "asc" },
@@ -52,26 +52,40 @@ export default async function QuestionDetailPage({
       ? [{ url: question.imageUrl, alt: null }]
       : question.images;
 
-  // Whether this user answered in a prior session — for the "Previously
-  // answered" badge only. One cheap existence check; it does not gate answering
-  // (retry model: the question is always presented answerable).
+  // Single-attempt model: if this user already answered, load that Attempt so
+  // the client can render the result view directly instead of the answer form.
+  // The correct choice id is safe to send here — the user has already answered,
+  // so it's no longer an answer key that could be scraped before answering.
   const session = await auth();
-  const previouslyAnswered = session?.user?.id
-    ? (await db.attempt.count({
+  const existingAttempt = session?.user?.id
+    ? await db.attempt.findFirst({
         where: { userId: session.user.id, questionId: id },
-      })) > 0
-    : false;
+        select: { selectedChoiceId: true, isCorrect: true },
+      })
+    : null;
+
+  const correctChoice = question.choices.find((c) => c.isCorrect);
 
   // Explicit client shape — guarantees no extra fields leak across the boundary.
   // Every field is named explicitly (never a spread), so isCorrect / explanation
-  // can't ride along; images carry only { url, alt } (the legacy imageUrl is
-  // consumed only to build `images` above, never shipped as a raw field).
+  // can't ride along for an UNANSWERED question; images carry only { url, alt }
+  // (the legacy imageUrl is consumed only to build `images` above, never shipped
+  // as a raw field). Choices never carry `isCorrect` itself — only the derived
+  // correctChoiceId below, and only once the question has already been answered.
   const clientQuestion: ClientQuestion = {
     id: question.id,
     number: question.number,
     stem: question.stem,
-    choices: question.choices,
+    choices: question.choices.map(({ id, text }) => ({ id, text })),
     images,
+    priorAnswer: existingAttempt
+      ? {
+          selectedChoiceId: existingAttempt.selectedChoiceId,
+          isCorrect: existingAttempt.isCorrect,
+          correctChoiceId: correctChoice?.id ?? "",
+          explanation: question.explanation,
+        }
+      : null,
   };
 
   return (
@@ -80,12 +94,6 @@ export default async function QuestionDetailPage({
         title="Question"
         back={{ href: "/questions", label: "Back to questions" }}
       />
-
-      {previouslyAnswered ? (
-        <Badge tone="neutral" icon={<CheckIcon className="h-3.5 w-3.5 shrink-0" />} className="w-fit font-medium normal-case tracking-normal text-[var(--muted)]">
-          Previously answered — answer again to practice
-        </Badge>
-      ) : null}
 
       <Card>
         {/* Stable, system-assigned ordinal — read-only, just a "Question #N" label. */}

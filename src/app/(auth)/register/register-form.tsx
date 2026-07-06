@@ -2,73 +2,50 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Position } from "@prisma/client";
+import { useRouter } from "next/navigation";
 
-import { registerUser, authenticate } from "@/app/actions/auth";
-import { POSITION_LABELS } from "@/lib/validations/auth";
+import { sendOtp } from "@/app/actions/otp";
 import { Button } from "@/components/ui/button";
 import { Field, inputClass } from "@/components/ui/field";
 
+/**
+ * Step 1 of registration: email only. On submit, sendOtp mints and emails a
+ * 6-digit code (always returning a generic success — see otp.ts) and we move
+ * on to /verify-email. The account itself isn't created until step 3.
+ */
 export function RegisterForm() {
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function onSubmit(formData: FormData) {
-    setError(null);
-    const payload = {
-      name: formData.get("name"),
-      email: formData.get("email"),
-      password: formData.get("password"),
-      position: formData.get("position"),
-      institution: formData.get("institution"),
-    };
+    const email = String(formData.get("email") ?? "");
 
     startTransition(async () => {
-      const created = await registerUser(payload);
-      if (!created.ok) {
-        setError(created.error);
-        return;
-      }
-      // Auto sign-in then redirect to the dashboard.
-      const signedIn = await authenticate({
-        email: payload.email,
-        password: payload.password,
-      });
-      if (!signedIn.ok) setError(signedIn.error);
+      await sendOtp({ email });
+      router.push("/verify-email");
     });
   }
 
   return (
     <div className="flex flex-col gap-5">
       <h1 className="text-2xl font-bold">Create your account</h1>
+      <p className="text-sm text-[var(--muted)]">
+        Enter your email and we&apos;ll send you a 6-digit verification code to
+        get started.
+      </p>
       <form action={onSubmit} className="flex flex-col gap-4">
-        <Field label="Full name" htmlFor="name">
-          <input id="name" name="name" required className={inputClass()} />
-        </Field>
         <Field label="Email" htmlFor="email">
-          <input id="email" name="email" type="email" required className={inputClass()} />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            className={inputClass()}
+          />
         </Field>
-        <Field label="Password" htmlFor="password">
-          <input id="password" name="password" type="password" required minLength={8} className={inputClass()} />
-        </Field>
-        <Field label="Position" htmlFor="position">
-          <select id="position" name="position" required defaultValue="" className={inputClass()}>
-            <option value="" disabled>
-              Select…
-            </option>
-            {(Object.values(Position) as Position[]).map((value) => (
-              <option key={value} value={value}>
-                {POSITION_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Current institution" htmlFor="institution">
-          <input id="institution" name="institution" required className={inputClass()} />
-        </Field>
-        {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Creating account…" : "Sign up"}
+          {isPending ? "Sending…" : "Send verification code"}
         </Button>
       </form>
       <p className="text-sm text-[var(--muted)]">

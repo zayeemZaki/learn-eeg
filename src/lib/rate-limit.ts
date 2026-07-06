@@ -56,6 +56,18 @@ export const FORGOT_PASSWORD_RULE: RateLimitRule = {
 };
 
 /**
+ * Email verification (OTP-first registration): throttle code-send requests
+ * from one source. Paired with an email-keyed DB count in the OTP action
+ * itself (this IP limiter alone doesn't cap one attacker spraying codes to
+ * many distinct addresses' worth of Resend spend the way the email check does).
+ */
+export const OTP_REQUEST_RULE: RateLimitRule = {
+  name: "otp-request",
+  limit: 5,
+  windowSeconds: 60 * 60, // 5 code requests / hour per IP
+};
+
+/**
  * Best-effort client IP from request headers. On Vercel the first hop of
  * `x-forwarded-for` is the real client; `x-real-ip` is a fallback. When neither
  * is present (e.g. local dev) we use a constant bucket so the limiter still

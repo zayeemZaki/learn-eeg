@@ -93,6 +93,26 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+// OTP-first email verification, ahead of registration. One row per outstanding
+// code. Keyed on `email` (not a User FK) because no User row exists yet at this
+// point in the flow — verification happens BEFORE account creation. Mirrors
+// PasswordResetToken's security posture: only the SHA-256 HASH of the code is
+// stored, never the raw value; single-use (usedAt) and time-limited
+// (expiresAt). `attempts` guards against brute-forcing the 6-digit space (only
+// 1,000,000 possibilities, unlike a 256-bit reset token) — the action layer
+// locks a row out after MAX_ATTEMPTS wrong guesses.
+model EmailVerificationOtp {
+  id        String    @id @default(cuid())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
 // Auth.js adapter models. Present so OAuth providers can be added later
 // without a migration; the credentials + JWT flow does not populate them.
 model Account {
@@ -192,6 +212,7 @@ model Attempt {
   question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   selectedChoice Choice   @relation(fields: [selectedChoiceId], references: [id])
 
+  @@unique([userId, questionId])
   @@index([userId])
   @@index([questionId])
 }

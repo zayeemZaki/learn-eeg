@@ -107,3 +107,60 @@ export async function sendPasswordResetEmail(
     throw new Error("Failed to send password-reset email");
   }
 }
+
+/**
+ * Send the email-verification OTP. `otp` is the raw 6-digit code; only its
+ * hash is ever persisted (see src/lib/otp.ts). Throws on a Resend error — the
+ * caller decides how to surface it (the send flow stays generic regardless).
+ */
+export async function sendOtpEmail(to: string, otp: string): Promise<void> {
+  const resend = getResend();
+
+  // otp is server-generated digits only, but escape defensively before
+  // interpolating into the HTML body.
+  const safeOtp = escapeHtml(otp);
+
+  const text = [
+    "Verify your email for EEG Quiz",
+    "",
+    "Your verification code is:",
+    "",
+    otp,
+    "",
+    "This code expires in 10 minutes and can be used once.",
+    "If you didn't request this, you can safely ignore this email.",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
+      <h1 style="font-size: 20px; margin: 0 0 16px;">Verify your email</h1>
+      <p style="font-size: 14px; line-height: 1.6; margin: 0 0 20px;">
+        Use the code below to verify your email and continue creating your EEG Quiz account.
+      </p>
+      <p style="margin: 0 0 24px; text-align: center;">
+        <span style="display: inline-block; background: #f4f4f5; color: #1a1a1a; letter-spacing: 6px; padding: 14px 22px; border-radius: 8px; font-size: 28px; font-weight: 700;">
+          ${safeOtp}
+        </span>
+      </p>
+      <p style="font-size: 13px; line-height: 1.6; color: #555; margin: 0 0 12px;">
+        This code expires in 10 minutes and can be used once.
+      </p>
+      <p style="font-size: 13px; line-height: 1.6; color: #555; margin: 0;">
+        If you didn't request this, you can safely ignore this email.
+      </p>
+    </div>
+  `;
+
+  const { error } = await resend.emails.send({
+    from: env.EMAIL_FROM,
+    to,
+    subject: "Your EEG Quiz verification code",
+    html,
+    text,
+  });
+
+  if (error) {
+    console.error("Resend OTP send failed:", error);
+    throw new Error("Failed to send verification email");
+  }
+}

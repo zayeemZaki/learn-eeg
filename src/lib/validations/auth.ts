@@ -22,13 +22,19 @@ const roleRule = z.nativeEnum(Role, {
   errorMap: () => ({ message: "Select a role" }),
 });
 
-export const registerSchema = z.object({
-  name: nameRule,
-  email: emailRule,
-  password: passwordRule,
-  position: positionRule,
-  institution: institutionRule,
-});
+export const registerSchema = z
+  .object({
+    name: nameRule,
+    email: emailRule,
+    password: passwordRule,
+    confirmPassword: passwordRule,
+    position: positionRule,
+    institution: institutionRule,
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
 export const loginSchema = z.object({
   email: emailRule,
@@ -84,6 +90,18 @@ export const resetPasswordSchema = z.object({
   newPassword: passwordRule,
 });
 
+// ── OTP-first email verification ────────────────────────────────────────────
+
+/** Step 1 — request a code. Just an email, reusing the shared normalized rule. */
+export const sendOtpSchema = z.object({
+  email: emailRule,
+});
+
+/** Step 2 — submit the code. Exactly 6 digits. */
+export const verifyOtpSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code"),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ProfileInput = z.infer<typeof profileSchema>;
@@ -92,6 +110,8 @@ export type AdminUpdateUserInput = z.infer<typeof adminUpdateUserSchema>;
 export type AdminResetPasswordInput = z.infer<typeof adminResetPasswordSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type SendOtpInput = z.infer<typeof sendOtpSchema>;
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 
 /** Human-readable labels for the Position enum (UI + display). */
 export const POSITION_LABELS: Record<Position, string> = {

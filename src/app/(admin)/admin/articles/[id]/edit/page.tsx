@@ -39,7 +39,7 @@ export default async function EditArticlePage({
         title="Edit article"
         back={{ href: "/admin/articles", label: "Back to literature" }}
       />
-      <ArticleForm article={article} />
+      <ArticleForm key={article.id} article={article} />
 
       {/* Danger zone — the delete control lives on the edit page (not the list);
           the trash button opens a confirm modal and, on success, returns to the

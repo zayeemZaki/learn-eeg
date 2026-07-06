@@ -37,7 +37,7 @@ export default async function EditAtlasEntryPage({
         title="Edit atlas entry"
         back={{ href: "/admin/atlas", label: "Back to atlas" }}
       />
-      <AtlasForm entry={entry} />
+      <AtlasForm key={entry.id} entry={entry} />
 
       {/* Danger zone — the delete control lives on the edit page (not the list);
           the trash button opens a confirm modal and, on success, returns to the

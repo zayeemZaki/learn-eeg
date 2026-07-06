@@ -11,7 +11,7 @@ export default function NewQuestionPage() {
         title="New question"
         back={{ href: "/admin/questions", label: "Back to questions" }}
       />
-      <QuestionForm />
+      <QuestionForm key="new" />
     </div>
   );
 }

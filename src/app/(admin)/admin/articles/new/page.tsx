@@ -11,7 +11,7 @@ export default function NewArticlePage() {
         title="New article"
         back={{ href: "/admin/articles", label: "Back to literature" }}
       />
-      <ArticleForm />
+      <ArticleForm key="new" />
     </div>
   );
 }

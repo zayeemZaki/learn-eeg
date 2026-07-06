@@ -11,7 +11,7 @@ export default function NewAtlasEntryPage() {
         title="New atlas entry"
         back={{ href: "/admin/atlas", label: "Back to atlas" }}
       />
-      <AtlasForm />
+      <AtlasForm key="new" />
     </div>
   );
 }

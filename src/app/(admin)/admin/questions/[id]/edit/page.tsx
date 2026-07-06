@@ -47,7 +47,7 @@ export default async function EditQuestionPage({
         title="Edit question"
         back={{ href: "/admin/questions", label: "Back to questions" }}
       />
-      <QuestionForm question={question} />
+      <QuestionForm key={question.id} question={question} />
 
       {/* Danger zone — the delete control lives on the edit page (not the list);
           the trash button opens a confirm modal and, on success, returns to the

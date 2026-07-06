@@ -1,17 +1,13 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { EegWaveform } from "@/components/site/eeg-waveform";
 
 /** Public landing page: a single hero whose one job is sign up or log in. */
 export default function WelcomePage() {
   return (
     <section className="relative isolate overflow-hidden">
       {/* Strip-chart paper: a whisper-faint ruled grid evoking paper EEG,
-          sitting *behind* the waveform so the trace stays the signature. */}
+          sitting behind the hero as the page's quiet backdrop. */}
       <div className="eeg-grid pointer-events-none absolute inset-0 -z-20" aria-hidden="true" />
-
-      {/* Signature: the EEG trace runs behind the hero, vertically centered. */}
-      <EegWaveform className="pointer-events-none absolute inset-x-0 top-1/2 -z-10 h-64 w-full -translate-y-1/2 opacity-80" />
 
       <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-6 py-24 text-center sm:py-32">
         <span className="text-sm font-semibold uppercase tracking-widest text-[var(--accent)]">

@@ -10,6 +10,7 @@
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
 
 import { useReducedMotion } from "@/components/charts/use-reduced-motion";
+import { accuracyFill } from "@/components/charts/accuracy-tone";
 
 interface RadialAccuracyProps {
   /** 0–100, or null when there's nothing to measure (renders "—"). */
@@ -25,6 +26,8 @@ export function RadialAccuracy({ percent, ariaLabel, size = 168 }: RadialAccurac
   const value = percent ?? 0;
   const data = [{ name: "accuracy", value }];
 
+  const arc = accuracyFill(percent);
+
   return (
     <div
       role="img"
@@ -35,8 +38,8 @@ export function RadialAccuracy({ percent, ariaLabel, size = 168 }: RadialAccurac
       <ResponsiveContainer width="100%" height="100%">
         <RadialBarChart
           data={data}
-          innerRadius="74%"
-          outerRadius="100%"
+          innerRadius="70%"
+          outerRadius="96%"
           startAngle={90}
           endAngle={-270}
         >
@@ -46,14 +49,14 @@ export function RadialAccuracy({ percent, ariaLabel, size = 168 }: RadialAccurac
             dataKey="value"
             angleAxisId={0}
             cornerRadius={999}
-            fill="var(--accent)"
+            fill={arc}
             background={{ fill: "var(--border)" }}
             isAnimationActive={!reduced}
           />
         </RadialBarChart>
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-[family-name:var(--font-display)] text-3xl font-bold tabular-nums tracking-tight">
+        <span className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-none tabular-nums tracking-tight">
           {percent != null ? `${percent}%` : "—"}
         </span>
       </div>

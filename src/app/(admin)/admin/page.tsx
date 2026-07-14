@@ -177,6 +177,7 @@ export default async function AdminOverviewPage() {
               ariaLabel="Accuracy by question category across all users"
               unit="%"
               max={100}
+              semantic
             />
           ) : (
             <p className="text-sm text-[var(--muted)]">No category data yet.</p>

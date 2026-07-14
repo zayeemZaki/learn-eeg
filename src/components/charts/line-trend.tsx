@@ -78,7 +78,8 @@ export function LineTrend({ data, ariaLabel, height = 200 }: LineTrendProps) {
             contentStyle={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
-              borderRadius: 8,
+              borderRadius: "var(--radius-md)",
+              boxShadow: "var(--shadow-md)",
               color: "var(--foreground)",
               fontSize: 13,
             }}
@@ -92,7 +93,12 @@ export function LineTrend({ data, ariaLabel, height = 200 }: LineTrendProps) {
             fill="url(#lineTrendFill)"
             isAnimationActive={!reduced}
             dot={false}
-            activeDot={{ r: 3, fill: "var(--accent)" }}
+            activeDot={{
+              r: 4,
+              fill: "var(--accent)",
+              stroke: "var(--surface)",
+              strokeWidth: 2,
+            }}
           />
         </AreaChart>
       </ResponsiveContainer>

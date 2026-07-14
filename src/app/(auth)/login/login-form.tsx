@@ -5,6 +5,7 @@ import Link from "next/link";
 import { authenticate } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Field, inputClass } from "@/components/ui/field";
+import { PasswordField } from "@/components/ui/password-field";
 
 export function LoginForm({ resetSuccess = false }: { resetSuccess?: boolean }) {
   const [error, setError] = useState<string | null>(null);
@@ -34,9 +35,12 @@ export function LoginForm({ resetSuccess = false }: { resetSuccess?: boolean }) 
         <Field label="Email" htmlFor="email">
           <input id="email" name="email" type="email" required className={inputClass()} />
         </Field>
-        <Field label="Password" htmlFor="password">
-          <input id="password" name="password" type="password" required className={inputClass()} />
-        </Field>
+        <PasswordField
+          label="Password"
+          name="password"
+          autoComplete="current-password"
+          defaultId="password"
+        />
         {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
         <Button type="submit" disabled={isPending}>
           {isPending ? "Signing in…" : "Log in"}

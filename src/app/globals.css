@@ -26,8 +26,31 @@
   /* A faint accent plane for soft fills (matches the -soft family). */
   --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--surface));
 
-  /* Radius scale — defined now for later passes; existing rounded-* utilities are
-     left untouched this pass. */
+}
+
+/*
+ * Elevation + radius. Shadows are tinted with --foreground rather than black, so
+ * they read as the same light source as the slate palette.
+ *
+ * These MUST live in a non-inline @theme: Tailwind has to own the names to
+ * generate the shadow and rounded utilities from them, and a `@theme inline`
+ * alias pointing back at a :root var of the same name resolves to itself and
+ * emits nothing. Tailwind re-emits them into :root, so var(--shadow-md) works.
+ * They override Tailwind's stock scales, so existing shadow-sm/rounded-lg
+ * utilities across the app inherit these values.
+ */
+@theme {
+  --shadow-xs: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent);
+  --shadow-sm:
+    0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent),
+    0 2px 8px -2px color-mix(in srgb, var(--foreground) 8%, transparent);
+  --shadow-md:
+    0 2px 4px -1px color-mix(in srgb, var(--foreground) 6%, transparent),
+    0 8px 20px -4px color-mix(in srgb, var(--foreground) 12%, transparent);
+  --shadow-lg:
+    0 4px 8px -2px color-mix(in srgb, var(--foreground) 8%, transparent),
+    0 24px 48px -12px color-mix(in srgb, var(--foreground) 18%, transparent);
+
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
@@ -58,6 +81,7 @@
   --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+
 }
 
 html {
@@ -193,6 +217,56 @@ input:-webkit-autofill:active {
 }
 .account-menu-signout.account-menu-signout button:hover {
   background-color: var(--background);
+}
+
+/*
+ * EEG image loading. The shimmer sits BEHIND the image, which fades in and
+ * occludes it on decode — so no "is loading" flag is needed and EegImage can
+ * stay a server component. Both collapse under prefers-reduced-motion.
+ */
+@keyframes eeg-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.eeg-image-frame {
+  background-image: linear-gradient(
+    90deg,
+    var(--background) 0%,
+    color-mix(in srgb, var(--accent) 4%, var(--background)) 35%,
+    color-mix(in srgb, var(--accent) 7%, var(--background)) 50%,
+    color-mix(in srgb, var(--accent) 4%, var(--background)) 65%,
+    var(--background) 100%
+  );
+  background-size: 200% 100%;
+  animation: eeg-shimmer 1.6s ease-in-out infinite;
+}
+
+.eeg-image-img {
+  animation: eeg-image-in 0.4s ease-out both;
+}
+
+@keyframes eeg-image-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eeg-image-frame {
+    animation: none;
+    background-image: none;
+  }
+  .eeg-image-img {
+    animation: none;
+  }
 }
 
 /*

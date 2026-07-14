@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatTile } from "@/components/ui/stat-tile";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Card } from "@/components/ui/card";
+import { buttonClass } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { LineTrend } from "@/components/charts/line-trend";
@@ -85,6 +86,10 @@ export default async function DashboardPage() {
             <StatTile
               label="Questions answered"
               value={summary.totalAttempts.toLocaleString()}
+              delta={{
+                value: summary.attemptsTrend.delta,
+                label: `vs previous ${ACTIVITY_DAYS} days`,
+              }}
               sub={`across ${summary.distinctQuestions.toLocaleString()} ${
                 summary.distinctQuestions === 1 ? "question" : "questions"
               }`}
@@ -97,6 +102,12 @@ export default async function DashboardPage() {
             <StatTile
               label="Accuracy"
               value={accuracy.percent != null ? `${accuracy.percent}%` : "—"}
+              // Percentage POINTS, not percent: 83%→87% is "+4 pts", not "+4%".
+              delta={{
+                value: summary.accuracyTrend.delta,
+                unit: " pts",
+                label: `vs previous ${ACTIVITY_DAYS} days`,
+              }}
               sub={`${accuracy.correct} of ${accuracy.total} on latest try`}
             />
             <StatTile
@@ -129,6 +140,7 @@ export default async function DashboardPage() {
                   ariaLabel="Accuracy by question category"
                   unit="%"
                   max={100}
+                  semantic
                 />
               ) : (
                 <p className="text-sm text-[var(--muted)]">No category data yet.</p>
@@ -142,6 +154,7 @@ export default async function DashboardPage() {
                   ariaLabel="Accuracy by question difficulty"
                   unit="%"
                   max={100}
+                  semantic
                 />
               ) : (
                 <p className="text-sm text-[var(--muted)]">No difficulty data yet.</p>
@@ -194,10 +207,7 @@ export default async function DashboardPage() {
                 Work through more teaching cases to sharpen your weak areas.
               </p>
             </div>
-            <Link
-              href="/questions"
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-            >
+            <Link href="/questions" className={buttonClass()}>
               Go to question bank
             </Link>
           </Card>

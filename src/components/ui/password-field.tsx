@@ -6,7 +6,6 @@ import { Field, inputClass } from "@/components/ui/field";
 
 function EyeIcon({ open }: { open: boolean }) {
   if (open) {
-    // Open eye — password is currently visible as plain text.
     return (
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
         <path d="M1.5 12s4-7.5 10.5-7.5S22.5 12 22.5 12s-4 7.5-10.5 7.5S1.5 12 1.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
@@ -14,7 +13,6 @@ function EyeIcon({ open }: { open: boolean }) {
       </svg>
     );
   }
-  // Closed/slashed eye — password is currently masked.
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
       <path d="M3 3l18 18" strokeLinecap="round" strokeLinejoin="round" />
@@ -28,32 +26,27 @@ function EyeIcon({ open }: { open: boolean }) {
   );
 }
 
-/**
- * Password input with a show/hide toggle. Wraps Field/inputClass so it drops
- * into the same form layout as every other field; the toggle button is
- * type="button" so it never submits the form, and carries an aria-label that
- * flips with its state for screen readers.
- */
 export function PasswordField({
   label,
   name,
   autoComplete,
   minLength,
   defaultId,
+  error,
 }: {
   label: string;
   name: string;
   autoComplete: "new-password" | "current-password";
   minLength?: number;
-  /** Optional explicit id; defaults to a generated one. */
   defaultId?: string;
+  error?: string;
 }) {
   const generatedId = useId();
   const id = defaultId ?? generatedId;
   const [visible, setVisible] = useState(false);
 
   return (
-    <Field label={label} htmlFor={id}>
+    <Field label={label} htmlFor={id} error={error}>
       <div className="relative">
         <input
           id={id}
@@ -68,7 +61,7 @@ export function PasswordField({
           type="button"
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? "Hide password" : "Show password"}
-          className="absolute inset-y-0 right-0 flex items-center px-3 text-[var(--muted)] hover:text-[var(--foreground)]"
+          className="absolute inset-y-0 right-0 flex items-center rounded-r-md px-3 text-[var(--muted)] outline-none transition-colors hover:text-[var(--foreground)] focus-visible:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
         >
           <EyeIcon open={visible} />
         </button>

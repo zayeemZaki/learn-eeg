@@ -72,7 +72,6 @@ export function QuestionGallery({ images }: { images: GalleryImageView[] }) {
 
   return (
     <>
-      {/* Gallery grid — single image still gets a button so zoom is consistent. */}
       <ul
         className={`mt-4 grid gap-3 ${count === 1 ? "grid-cols-1 sm:max-w-md" : "grid-cols-2 sm:grid-cols-3"}`}
       >
@@ -83,9 +82,14 @@ export function QuestionGallery({ images }: { images: GalleryImageView[] }) {
               onClick={() => setActiveIndex(i)}
               aria-label={`View larger: ${altFor(img, i)}`}
               aria-haspopup="dialog"
-              className="group block w-full overflow-hidden rounded-lg outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] motion-safe:hover:-translate-y-0.5"
+              className="group relative block w-full overflow-hidden rounded-md outline-none transition duration-200 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] motion-safe:hover:-translate-y-0.5 [&_.eeg-image-frame]:transition-colors [&_.eeg-image-frame]:duration-200 hover:[&_.eeg-image-frame]:border-[color-mix(in_srgb,var(--accent)_45%,var(--border))] [&_img]:transition-transform [&_img]:duration-300 motion-safe:group-hover:[&_img]:scale-[1.04]"
             >
               <EegImage src={img.url} alt={altFor(img, i)} />
+
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-[var(--accent)] opacity-0 transition-opacity duration-200 group-hover:opacity-[0.06]"
+              />
             </button>
           </li>
         ))}
@@ -101,14 +105,14 @@ export function QuestionGallery({ images }: { images: GalleryImageView[] }) {
         >
           {/* Top bar: counter (text, never colour-only) + close. */}
           <div className="flex items-center justify-between gap-3 text-white">
-            <span className="rounded-md bg-[color-mix(in_srgb,black_45%,transparent)] px-2.5 py-1 text-sm font-medium tabular-nums">
+            <span className="rounded-full bg-[color-mix(in_srgb,black_50%,transparent)] px-3 py-1 text-sm font-medium tabular-nums backdrop-blur-sm">
               {activeIndex! + 1} / {count}
             </span>
             <button
               type="button"
               onClick={close}
               aria-label="Close image viewer"
-              className="rounded-md bg-[color-mix(in_srgb,black_45%,transparent)] p-2 outline-none transition hover:bg-[color-mix(in_srgb,black_65%,transparent)] focus-visible:ring-2 focus-visible:ring-white"
+              className={`p-2 ${overlayControl}`}
             >
               <CrossIcon className="h-5 w-5 shrink-0" />
             </button>
@@ -122,11 +126,15 @@ export function QuestionGallery({ images }: { images: GalleryImageView[] }) {
               </NavButton>
             ) : null}
 
+            {/* `key` forces a remount on navigation, restarting the fade — without
+                it React reuses the element and the gallery hard-cuts between images. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              key={active.url}
               src={active.url}
               alt={altFor(active, activeIndex!)}
-              className="max-h-[75vh] w-auto max-w-full rounded-lg object-contain"
+              decoding="async"
+              className="eeg-image-img max-h-[75vh] w-auto max-w-full rounded-md object-contain shadow-lg"
             />
 
             {count > 1 ? (
@@ -140,6 +148,17 @@ export function QuestionGallery({ images }: { images: GalleryImageView[] }) {
     </>
   );
 }
+
+/**
+ * Chrome for the controls floating over the lightbox. These sit on an arbitrary
+ * IMAGE, not a theme surface, so they can't use the app's --surface/--accent
+ * chrome — a translucent black plate and a white ring are what stay legible over
+ * both a light and a dark EEG trace.
+ */
+const overlayControl =
+  "rounded-full bg-[color-mix(in_srgb,black_50%,transparent)] text-white backdrop-blur-sm outline-none transition duration-150 " +
+  "hover:bg-[color-mix(in_srgb,black_70%,transparent)] active:scale-95 " +
+  "focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black";
 
 /** A large prev/next control flanking the lightbox image. */
 function NavButton({
@@ -156,7 +175,7 @@ function NavButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="shrink-0 rounded-full bg-[color-mix(in_srgb,black_45%,transparent)] p-2 text-white outline-none transition hover:bg-[color-mix(in_srgb,black_65%,transparent)] focus-visible:ring-2 focus-visible:ring-white"
+      className={`shrink-0 p-2 ${overlayControl}`}
     >
       {children}
     </button>

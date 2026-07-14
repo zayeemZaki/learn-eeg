@@ -2,17 +2,14 @@
 
 /**
  * A horizontal bar chart for a labelled breakdown — accuracy per category /
- * difficulty, or counts per category (content coverage). Horizontal so long
- * category labels stay readable and the chart degrades gracefully on narrow
- * screens. The page computes data via stats.ts and passes it in; this stays
- * presentational. Tokens only, responsive container, reduced-motion aware.
+ * difficulty, or counts per category. Horizontal so long category labels stay
+ * readable on narrow screens. Presentational; the page computes data via stats.ts.
  */
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -20,6 +17,7 @@ import {
 } from "recharts";
 
 import { useReducedMotion } from "@/components/charts/use-reduced-motion";
+import { accuracyFill } from "@/components/charts/accuracy-tone";
 
 export interface BarBreakdownItem {
   label: string;
@@ -37,6 +35,13 @@ interface BarBreakdownProps {
   max?: number;
   /** Per-bar height in px; total height scales with item count. Default 34. */
   barSize?: number;
+  /**
+   * Colour each bar by its accuracy band instead of a flat --accent. Opt-in: this
+   * chart also renders content-coverage COUNTS, where a low bar just means "few
+   * questions here" and tinting it red would invent a judgement the data doesn't
+   * support. Only pass this where the value really is an accuracy percentage.
+   */
+  semantic?: boolean;
 }
 
 export function BarBreakdown({
@@ -45,6 +50,7 @@ export function BarBreakdown({
   unit = "",
   max,
   barSize = 34,
+  semantic = false,
 }: BarBreakdownProps) {
   const reduced = useReducedMotion();
   const height = Math.max(120, data.length * (barSize + 14) + 24);
@@ -55,7 +61,7 @@ export function BarBreakdown({
         <BarChart
           data={data}
           layout="vertical"
-          margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
+          margin={{ top: 4, right: 36, bottom: 4, left: 8 }}
           barCategoryGap={10}
         >
           <CartesianGrid stroke="var(--border)" horizontal={false} />
@@ -81,7 +87,8 @@ export function BarBreakdown({
             contentStyle={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
-              borderRadius: 8,
+              borderRadius: "var(--radius-md)",
+              boxShadow: "var(--shadow-md)",
               color: "var(--foreground)",
               fontSize: 13,
             }}
@@ -96,16 +103,23 @@ export function BarBreakdown({
             radius={[0, 4, 4, 0]}
             isAnimationActive={!reduced}
             maxBarSize={barSize}
+            label={{
+              position: "right",
+              offset: 8,
+              // Recharts types the formatter's argument as RenderableText (which
+              // includes undefined), not number — so guard rather than assert.
+              formatter: (v) => (v == null ? "" : `${v}${unit}`),
+              fill: "var(--foreground)",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
           >
             {data.map((item) => (
-              <Cell key={item.label} fill="var(--accent)" />
+              <Cell
+                key={item.label}
+                fill={semantic ? accuracyFill(item.value) : "var(--accent)"}
+              />
             ))}
-            <LabelList
-              dataKey="value"
-              position="right"
-              formatter={(v) => `${v}${unit}`}
-              style={{ fill: "var(--muted)", fontSize: 12 }}
-            />
           </Bar>
         </BarChart>
       </ResponsiveContainer>

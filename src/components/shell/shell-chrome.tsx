@@ -47,7 +47,7 @@ function CloseIcon() {
 }
 
 const ctrlBtn =
-  "inline-flex items-center justify-center rounded-lg border border-[var(--border)] text-[var(--muted)] outline-none transition hover:border-[color-mix(in_srgb,var(--accent)_40%,var(--border))] hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]";
+  "inline-flex items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted)] outline-none transition duration-150 hover:border-[color-mix(in_srgb,var(--accent)_40%,var(--border))] hover:bg-[var(--surface)] hover:text-[var(--foreground)] active:bg-[var(--background)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]";
 
 /**
  * The interactive shell chrome — the single client island for the shell; the

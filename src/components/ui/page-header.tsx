@@ -45,11 +45,11 @@ export function PageHeader({ title, description, actions, back }: PageHeaderProp
 
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
-          <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">
+          <h1 className="text-balance font-[family-name:var(--font-display)] text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
             {title}
           </h1>
           {description ? (
-            <p className="mt-1 text-[var(--muted)]">{description}</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted)]">{description}</p>
           ) : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-3">{actions}</div> : null}

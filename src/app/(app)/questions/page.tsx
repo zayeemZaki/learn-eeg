@@ -124,13 +124,12 @@ export default async function QuestionsPage({
             <li key={q.id}>
               <Link
                 href={`/questions/${q.id}`}
-                className="group flex items-start justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 outline-none transition hover:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] motion-safe:hover:-translate-y-0.5"
+                className="group flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs outline-none transition duration-200 hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--border))] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] motion-safe:hover:-translate-y-0.5"
               >
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  {/* Stem truncated to ~2 lines so rows stay scannable, prefixed
-                      with the stable "#N" ordinal. */}
-                  <p className="line-clamp-2 text-sm font-medium leading-relaxed text-[var(--foreground)]">
-                    <span className="tabular-nums text-[var(--muted)]">#{q.number}</span>{" "}
+                <div className="flex min-w-0 flex-col gap-2">
+                  {/* Clamped to 2 lines so rows stay scannable. */}
+                  <p className="line-clamp-2 text-base font-medium leading-relaxed text-[var(--foreground)]">
+                    <span className="tabular-nums font-normal text-[var(--muted)]">#{q.number}</span>{" "}
                     {q.stem}
                   </p>
                   {q.imageCount > 0 ? (

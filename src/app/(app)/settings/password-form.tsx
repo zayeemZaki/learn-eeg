@@ -4,14 +4,8 @@ import { useRef, useState, useTransition } from "react";
 
 import { changePassword } from "@/app/actions/account";
 import { Button } from "@/components/ui/button";
-import { Field, inputClass } from "@/components/ui/field";
+import { PasswordField } from "@/components/ui/password-field";
 
-/**
- * Self-service password change: current password (to authorize) + new password.
- * The action verifies the current password against the stored hash server-side
- * and returns a single "Current password is incorrect" on mismatch — the form
- * never learns more than that. Clears the fields on success.
- */
 export function PasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -39,27 +33,19 @@ export function PasswordForm() {
 
   return (
     <form ref={formRef} action={onSubmit} className="flex flex-col gap-4">
-      <Field label="Current password" htmlFor="current-password">
-        <input
-          id="current-password"
-          name="currentPassword"
-          type="password"
-          required
-          autoComplete="current-password"
-          className={inputClass()}
-        />
-      </Field>
-      <Field label="New password" htmlFor="new-password">
-        <input
-          id="new-password"
-          name="newPassword"
-          type="password"
-          required
-          minLength={8}
-          autoComplete="new-password"
-          className={inputClass()}
-        />
-      </Field>
+      <PasswordField
+        label="Current password"
+        name="currentPassword"
+        autoComplete="current-password"
+        defaultId="current-password"
+      />
+      <PasswordField
+        label="New password"
+        name="newPassword"
+        autoComplete="new-password"
+        minLength={8}
+        defaultId="new-password"
+      />
 
       {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
       {success ? (

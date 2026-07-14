@@ -6,37 +6,20 @@ interface EegImageProps {
   /** Required: every EEG image must be described for screen readers. */
   alt: string;
   className?: string;
-  /** Label shown in the empty state (defaults to "No image"). */
   emptyLabel?: string;
 }
 
 /**
- * One consistent frame for every EEG image in the app — question stems, atlas
- * entries, admin thumbnails, and the upload preview alike. A hairline --border
- * card on a faint --background surface holds the trace, which is `object-contain`ed
- * so it is never stretched or distorted at any width. A fixed aspect ratio
- * reserves the space before the image loads, so framed images don't cause layout
- * shift.
- *
- * When `src` is missing or empty the SAME frame renders an intentional, on-theme
- * empty state — a muted picture glyph above a small "No image" label — never a
- * bare grey box that reads as a broken image. So callers can always render
- * <EegImage>; it decides *how* an image (or its absence) looks, the caller only
- * decides *whether* to render the frame at all.
- *
- * DRY: the quiz, the atlas, the admin tables, and the uploader all render through
- * this, so the image treatment (and the empty state) stays identical app-wide.
+ * One consistent frame for every EEG image in the app. A fixed aspect ratio
+ * reserves the space before load (no layout shift), and a missing src renders an
+ * intentional empty state rather than a broken-image box.
  */
 export function EegImage({ src, alt, className = "", emptyLabel = "No image" }: EegImageProps) {
-  const frame = `aspect-[16/9] w-full overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--background)] ${className}`;
+  const frame = `aspect-[16/9] w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--background)] ${className}`;
 
   if (!src) {
     return (
-      <div
-        className={frame}
-        role="img"
-        aria-label={emptyLabel}
-      >
+      <div className={frame} role="img" aria-label={emptyLabel}>
         <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-[var(--muted)]">
           <ImageIcon className="h-6 w-6 shrink-0" />
           <span className="text-xs font-medium">{emptyLabel}</span>
@@ -46,11 +29,17 @@ export function EegImage({ src, alt, className = "", emptyLabel = "No image" }: 
   }
 
   return (
-    <div className={frame}>
-      {/* Plain <img> (not next/image) keeps remote/seed URLs config-free; the
-          fixed-ratio frame above is what prevents layout shift. */}
+    // `eeg-image-frame` shimmers BEHIND the image, which fades in and occludes it
+    // on decode — so there's no loading flag, and this stays a server component.
+    <div className={`eeg-image-frame ${frame}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt={alt} className="h-full w-full object-contain" />
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className="eeg-image-img h-full w-full object-contain"
+      />
     </div>
   );
 }

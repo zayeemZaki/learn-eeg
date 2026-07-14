@@ -54,6 +54,18 @@ export interface TimePoint {
   count: number;
 }
 
+/**
+ * A period-over-period comparison: the current trailing window against the equal
+ * window before it. `delta` is in the metric's own unit — a count for attempts,
+ * PERCENTAGE POINTS for accuracy (83%→87% is +4 points, not +4.8%).
+ */
+export interface Trend {
+  current: number;
+  previous: number;
+  /** current - previous, or null when the prior window has no data to compare against. */
+  delta: number | null;
+}
+
 /** A question ranked by difficulty-in-practice (lowest latest-accuracy first). */
 export interface HardestQuestion {
   id: string;
@@ -131,6 +143,16 @@ function bucketByDay(timestamps: Date[], days: number, now: Date): TimePoint[] {
   return keys.map((date) => ({ date, count: counts.get(date) ?? 0 }));
 }
 
+/**
+ * The two boundaries (epoch ms) splitting the trailing `days` window from the
+ * equal-length one before it: [prevStart … cutoff … now].
+ */
+function windowBounds(now: Date, days: number): { prevStart: number; cutoff: number } {
+  const span = days * 24 * 60 * 60 * 1000;
+  const cutoff = now.getTime() - span;
+  return { prevStart: cutoff - span, cutoff };
+}
+
 // ── USER dashboard ────────────────────────────────────────────────────────────
 
 /** Everything the user dashboard renders, for one signed-in user. */
@@ -145,6 +167,15 @@ export interface UserSummary {
   lastActiveAt: Date | null;
   /** Daily activity (attempt counts) over the trailing window. */
   activity: TimePoint[];
+  /** Attempts in the trailing window vs the equal window before it (a count). */
+  attemptsTrend: Trend;
+  /**
+   * Accuracy over the trailing window vs the one before, in percentage points.
+   * This is WINDOWED accuracy (every attempt in the period), not the headline
+   * latest-per-question figure — a period comparison has to score each period on
+   * what happened inside it.
+   */
+  accuracyTrend: Trend;
   /** Latest-accuracy per difficulty level (1–3), only levels with attempts. */
   byDifficulty: AccuracyBreakdownItem[];
   /** Latest-accuracy per question category, only categories with attempts. */
@@ -241,10 +272,45 @@ export async function getUserSummary(
     now,
   );
 
+  // Both windows are partitioned out of the `attempts` rows already in memory, so
+  // the trends add no query.
+  const { prevStart, cutoff } = windowBounds(now, activityDays);
+  const currentWindow: typeof attempts = [];
+  const previousWindow: typeof attempts = [];
+  for (const a of attempts) {
+    const at = a.createdAt.getTime();
+    if (at >= cutoff) currentWindow.push(a);
+    else if (at >= prevStart) previousWindow.push(a);
+  }
+
+  const attemptsTrend: Trend = {
+    current: currentWindow.length,
+    previous: previousWindow.length,
+    // An empty prior window means the user is new to the metric; "+12 vs zero" is
+    // noise, so withhold the delta rather than invent one.
+    delta: previousWindow.length > 0 ? currentWindow.length - previousWindow.length : null,
+  };
+
+  const currentPct = toPercent(
+    currentWindow.reduce((n, a) => (a.isCorrect ? n + 1 : n), 0),
+    currentWindow.length,
+  );
+  const previousPct = toPercent(
+    previousWindow.reduce((n, a) => (a.isCorrect ? n + 1 : n), 0),
+    previousWindow.length,
+  );
+  const accuracyTrend: Trend = {
+    current: currentPct ?? 0,
+    previous: previousPct ?? 0,
+    delta: currentPct != null && previousPct != null ? currentPct - previousPct : null,
+  };
+
   return {
     totalAttempts,
     distinctQuestions,
     accuracy,
+    attemptsTrend,
+    accuracyTrend,
     lastActiveAt,
     activity,
     byDifficulty,

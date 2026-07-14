@@ -77,3 +77,30 @@ export function TrashIcon({ className = "h-4 w-4 shrink-0" }: IconProps) {
     </svg>
   );
 }
+
+/** Up arrow — a metric that rose over the period. */
+export function TrendUpIcon({ className = "h-3.5 w-3.5 shrink-0" }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
+      <path d="M8 12.5v-9M8 3.5l-4 4M8 3.5l4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Down arrow — a metric that fell over the period. */
+export function TrendDownIcon({ className = "h-3.5 w-3.5 shrink-0" }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
+      <path d="M8 3.5v9M8 12.5l-4-4M8 12.5l4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Flat dash — the metric held steady (delta of exactly zero). */
+export function TrendFlatIcon({ className = "h-3.5 w-3.5 shrink-0" }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
+      <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}

@@ -117,7 +117,7 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="relative w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[color-mix(in_srgb,var(--foreground)_12%,transparent)] motion-safe:animate-[menuIn_0.12s_ease-out]"
+        className="relative w-full max-w-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5 shadow-lg motion-safe:animate-[menuIn_0.12s_ease-out]"
       >
         <h2 id={titleId} className="text-base font-semibold text-[var(--foreground)]">
           {title}
@@ -135,12 +135,7 @@ export function ConfirmDialog({
           >
             {cancelLabel}
           </Button>
-          <Button
-            type="button"
-            onClick={onConfirm}
-            disabled={pending}
-            className="border-transparent bg-danger from-danger to-[color-mix(in_srgb,var(--danger)_88%,black)] text-white shadow-sm shadow-[color-mix(in_srgb,var(--danger)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--danger)_88%,black)] hover:shadow-md focus-visible:ring-danger"
-          >
+          <Button type="button" variant="danger" onClick={onConfirm} disabled={pending}>
             {pending ? "Deleting…" : confirmLabel}
           </Button>
         </div>

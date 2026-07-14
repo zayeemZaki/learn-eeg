@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { resetPassword } from "@/app/actions/password-reset";
 import { Button } from "@/components/ui/button";
-import { Field, inputClass } from "@/components/ui/field";
+import { PasswordField } from "@/components/ui/password-field";
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const router = useRouter();
@@ -19,7 +19,6 @@ export function ResetPasswordForm({ token }: { token: string }) {
     const newPassword = String(formData.get("newPassword") ?? "");
     const confirm = String(formData.get("confirm") ?? "");
 
-    // Client-side confirm check — the server only needs token + newPassword.
     if (newPassword !== confirm) {
       setError("Passwords don't match");
       return;
@@ -36,8 +35,6 @@ export function ResetPasswordForm({ token }: { token: string }) {
     });
   }
 
-  // A missing token means the link was malformed or stripped — guide the user
-  // back to request a fresh one rather than showing a dead form.
   if (!token) {
     return (
       <div className="flex flex-col gap-5">
@@ -59,28 +56,20 @@ export function ResetPasswordForm({ token }: { token: string }) {
     <div className="flex flex-col gap-5">
       <h1 className="text-2xl font-bold">Choose a new password</h1>
       <form action={onSubmit} className="flex flex-col gap-4">
-        <Field label="New password" htmlFor="newPassword">
-          <input
-            id="newPassword"
-            name="newPassword"
-            type="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-            className={inputClass()}
-          />
-        </Field>
-        <Field label="Confirm new password" htmlFor="confirm">
-          <input
-            id="confirm"
-            name="confirm"
-            type="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-            className={inputClass()}
-          />
-        </Field>
+        <PasswordField
+          label="New password"
+          name="newPassword"
+          autoComplete="new-password"
+          minLength={8}
+          defaultId="newPassword"
+        />
+        <PasswordField
+          label="Confirm new password"
+          name="confirm"
+          autoComplete="new-password"
+          minLength={8}
+          defaultId="confirm"
+        />
         {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
         <Button type="submit" disabled={isPending}>
           {isPending ? "Updating…" : "Update password"}

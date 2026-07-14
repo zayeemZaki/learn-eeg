@@ -71,7 +71,7 @@ export function VerifyEmailForm({ email }: { email: string }) {
           type="button"
           onClick={onResend}
           disabled={isResending}
-          className="text-[var(--accent)] disabled:opacity-50"
+          className="rounded-sm font-medium text-[var(--accent)] underline-offset-2 outline-none transition hover:underline focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)] disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50"
         >
           {isResending ? "Sending…" : "Resend code"}
         </button>

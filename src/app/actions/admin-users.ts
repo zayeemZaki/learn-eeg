@@ -1,20 +1,5 @@
 "use server";
 
-/**
- * Admin user management. An admin edits any user's details + role and can reset
- * any user's password. Each action re-checks role === "ADMIN" first
- * (requireAdmin) — the /admin page guard is not sufficient, since an action is an
- * independently-invocable endpoint. Never trust the client; never select
- * passwordHash.
- *
- * Two guards protect against an admin locking the system (or themselves) out:
- *   - last-admin: demoting the final ADMIN to USER would leave no one able to
- *     reach /admin, so it's refused.
- *   - self role-change: an admin can't change their own role (that's the path to
- *     accidental self-lockout); role edits for one's own row are refused.
- *
- * deleteUser is intentionally out of scope for M5.
- */
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
@@ -124,6 +109,45 @@ export async function adminResetPassword(
     where: { id: targetId },
     data: { passwordHash: await hashPassword(parsed.data.newPassword) },
   });
+
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+export async function deleteUser(targetId: string): Promise<ActionResult> {
+  const session = await requireAdmin();
+
+  if (!targetId) return { ok: false, error: "Missing user" };
+
+  if (targetId === session.user.id) {
+    return { ok: false, error: "You can't delete your own account." };
+  }
+
+  const target = await db.user.findUnique({
+    where: { id: targetId },
+    select: { id: true, email: true, role: true },
+  });
+  if (!target) return { ok: false, error: "User not found" };
+
+  if (target.role === "ADMIN") {
+    const adminCount = await db.user.count({ where: { role: "ADMIN" } });
+    if (adminCount <= 1) {
+      return {
+        ok: false,
+        error: "Can't remove the last admin. Promote another user first.",
+      };
+    }
+  }
+
+  try {
+    await db.$transaction([
+      db.emailVerificationOtp.deleteMany({ where: { email: target.email } }),
+      db.user.delete({ where: { id: targetId } }),
+    ]);
+  } catch (error) {
+    console.error("deleteUser failed:", error);
+    return { ok: false, error: "Could not delete the user." };
+  }
 
   revalidatePath("/admin/users");
   return { ok: true };

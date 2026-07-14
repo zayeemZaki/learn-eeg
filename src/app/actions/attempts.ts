@@ -1,23 +1,9 @@
 "use server";
 
-/**
- * Records a user's answer to a question and reports correctness.
- *
- * Correctness is decided server-side from the stored Choice — the client only
- * sends ids, never which option is "right", so the answer key can't be scraped
- * from the network response before answering.
- *
- * SINGLE-ATTEMPT MODEL: a question can be answered once. This is enforced here
- * with a findFirst-then-create check, not a DB constraint — there is no
- * @@unique on Attempt(userId, questionId) yet, so two concurrent submits for
- * the same question could both pass the check before either write commits.
- * Adding that unique constraint (and switching this to an upsert-or-reject) is
- * the intended future hardening step; left as a application-level guard only
- * per current scope.
- */
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { auth } from "@/auth";
+import { requireUser } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 
 const schema = z.object({
@@ -29,9 +15,11 @@ export type AnswerResult =
   | { ok: true; isCorrect: boolean; correctChoiceId: string; explanation: string }
   | { ok: false; error: string };
 
+const ALREADY_ANSWERED = "You have already answered this question";
+
 export async function submitAnswer(raw: unknown): Promise<AnswerResult> {
-  const session = await auth();
-  if (!session?.user?.id) return { ok: false, error: "Not authenticated" };
+  const session = await requireUser();
+  const userId = session.user.id;
 
   const parsed = schema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: "Invalid input" };
@@ -49,23 +37,31 @@ export async function submitAnswer(raw: unknown): Promise<AnswerResult> {
 
   const correct = question.choices.find((c) => c.isCorrect);
 
-  // Single-attempt model: a question can only be answered once. Enforced at the
-  // application level (no @@unique on Attempt(userId, questionId) yet — a future
-  // migration should add one; this check is the interim guard).
-  const existing = await db.attempt.findFirst({
-    where: { userId: session.user.id, questionId },
+  const existing = await db.attempt.findUnique({
+    where: { userId_questionId: { userId, questionId } },
     select: { id: true },
   });
-  if (existing) return { ok: false, error: "You have already answered this question" };
+  if (existing) return { ok: false, error: ALREADY_ANSWERED };
 
-  await db.attempt.create({
-    data: {
-      userId: session.user.id,
-      questionId,
-      selectedChoiceId: choiceId,
-      isCorrect: selected.isCorrect,
-    },
-  });
+  try {
+    await db.attempt.create({
+      data: {
+        userId,
+        questionId,
+        selectedChoiceId: choiceId,
+        isCorrect: selected.isCorrect,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      // Lost the race against a concurrent submit for the same question.
+      return { ok: false, error: ALREADY_ANSWERED };
+    }
+    throw error;
+  }
 
   // The questions list shows per-question Answered/Not-answered status derived
   // from attempts. Recording one makes the cached list stale, so drop its

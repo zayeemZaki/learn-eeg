@@ -6,20 +6,10 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { AdminUserForm } from "@/components/admin/admin-user-form";
 import { AdminResetPasswordForm } from "@/components/admin/admin-reset-password-form";
+import { DeleteUserButton } from "@/components/admin/delete-user-button";
 
 export const metadata = { title: "Edit user" };
 
-/**
- * Admin edit page for a single user (inherits the /admin guard from the (admin)
- * layout + proxy). Fetches the user's editable fields with an explicit select —
- * passwordHash is never read — and renders two independent forms: details + role
- * (updateUser) and a password reset (adminResetPassword). In Next 16 params is
- * async and must be awaited.
- *
- * `isSelf` is passed to the details form so the role control is disabled for the
- * admin's own row (the action also refuses a self role-change as the real guard;
- * disabling the control is just clearer UX).
- */
 export default async function AdminEditUserPage({
   params,
 }: {
@@ -60,6 +50,10 @@ export default async function AdminEditUserPage({
 
       <SectionPanel title="Reset password">
         <AdminResetPasswordForm userId={user.id} />
+      </SectionPanel>
+
+      <SectionPanel title="Danger zone">
+        <DeleteUserButton id={user.id} name={user.name} disabled={isSelf} />
       </SectionPanel>
     </div>
   );

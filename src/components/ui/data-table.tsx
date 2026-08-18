@@ -33,10 +33,18 @@ interface DataTableProps<T> {
   /**
    * When provided, the WHOLE row is a link to this href: the row shows a hover
    * affordance (cursor + subtle bg), is keyboard-focusable, and Enter activates
-   * it. Implemented with a stretched overlay link in the first cell (valid table
-   * markup — no <a> wrapping <td>s); any interactive control in a cell that must
-   * sit above it (e.g. a Delete button) should set `relative z-10` and stop
-   * click propagation so a row-click never triggers it.
+   * it. Implemented as one stretched overlay link PER CELL, each anchored to its
+   * own relative <td> (valid table markup — no <a> wrapping <td>s); any
+   * interactive control in a cell that must sit above it (e.g. a Delete button)
+   * should set `relative z-10` and stop click propagation so a row-click never
+   * triggers it.
+   *
+   * WHY PER-CELL, NOT ONE OVERLAY ON THE <tr>: Safari/WebKit ignores
+   * `position: relative` on a <tr>, so a single `absolute inset-0` link in the
+   * first cell escapes the row and stretches to the nearest positioned ancestor
+   * — covering unrelated page chrome (on iPad this made the "New" button open
+   * the last row's edit page). A <td> is a reliable containing block in every
+   * engine, so anchoring one overlay per cell keeps the hit area inside the row.
    */
   rowHref?: (row: T) => string;
   /** Accessible label for the stretched row link (e.g. `Edit ${row.name}`). */
@@ -105,26 +113,37 @@ export function DataTable<T>({
                   key={rowKey(row)}
                   className={`border-b border-[var(--border)] last:border-0 ${
                     href
-                      ? // Whole-row link: the <tr> is the positioning context for
-                        // the stretched overlay link, with a subtle hover/focus
-                        // fill and a focus ring driven by the overlay's focus.
-                        "relative transition-colors hover:bg-[var(--background)] focus-within:bg-[var(--background)] has-[a:focus-visible]:outline has-[a:focus-visible]:-outline-offset-2 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-[var(--accent)]"
+                      ? // Whole-row link: a subtle hover/focus fill plus a focus
+                        // ring driven by the first cell's overlay link (the
+                        // overlays themselves are anchored per <td>).
+                        "transition-colors hover:bg-[var(--background)] focus-within:bg-[var(--background)] has-[a:focus-visible]:outline has-[a:focus-visible]:-outline-offset-2 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-[var(--accent)]"
                       : ""
                   }`}
                 >
                   {columns.map((col, i) => (
                     <td
                       key={i}
-                      className={`px-4 py-3 ${alignClass[col.align ?? "left"]} ${col.className ?? ""}`}
+                      className={`px-4 py-3 ${alignClass[col.align ?? "left"]} ${
+                        href ? "relative" : ""
+                      } ${col.className ?? ""}`}
                     >
-                      {/* Stretched overlay link, anchored to the relative <tr> so
-                          it covers the WHOLE row (not just this cell). Makes the
-                          row clickable + keyboard-focusable (Enter activates) while
-                          keeping valid table markup — no <a> wrapping <td>s. Lives
-                          in the first cell only so it's emitted once per row. */}
-                      {href && i === 0 ? (
-                        <Link href={href} aria-label={rowLabel?.(row)} className="absolute inset-0 outline-none">
-                          <span className="sr-only">{rowLabel?.(row)}</span>
+                      {/* One stretched overlay link per cell, anchored to THIS
+                          <td>. Together they cover the whole row, so a tap
+                          anywhere in the row opens it, while the hit area can
+                          never leak outside the row (see rowHref's note on
+                          Safari and `position: relative` on <tr>). Only the
+                          first cell's link is reachable by keyboard; the rest
+                          are hidden from the tab order and the a11y tree so the
+                          row is announced once. */}
+                      {href ? (
+                        <Link
+                          href={href}
+                          aria-label={i === 0 ? rowLabel?.(row) : undefined}
+                          aria-hidden={i === 0 ? undefined : true}
+                          tabIndex={i === 0 ? undefined : -1}
+                          className="absolute inset-0 outline-none"
+                        >
+                          {i === 0 ? <span className="sr-only">{rowLabel?.(row)}</span> : null}
                         </Link>
                       ) : null}
                       {/* Cell content is left unpositioned so the absolute overlay

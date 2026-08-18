@@ -2,13 +2,25 @@
 
 import { useRef, useState, useTransition } from "react";
 
-import { changePassword } from "@/app/actions/account";
+import {
+  changePassword,
+  reauthAfterCredentialChange,
+} from "@/app/actions/account";
 import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/ui/password-field";
 
+/**
+ * Self-service password change.
+ *
+ * A successful change bumps the account's session watermark server-side, which
+ * revokes every JWT issued before it — including this browser's. So the action
+ * reports `reauth` and we sign out to /login rather than leaving the user holding
+ * a token that every guard will now reject.
+ */
 export function PasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [reauthing, setReauthing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -26,8 +38,16 @@ export function PasswordForm() {
         setError(result.error);
         return;
       }
-      setSuccess("Password updated.");
       formRef.current?.reset();
+      if (result.reauth) {
+        // Other devices are now signed out, and so is this one — the server
+        // action performs the signOut + redirect (it throws a redirect).
+        setReauthing(true);
+        setSuccess("Password updated — please sign in again.");
+        await reauthAfterCredentialChange();
+        return;
+      }
+      setSuccess("Password updated.");
     });
   }
 
@@ -55,8 +75,8 @@ export function PasswordForm() {
       ) : null}
 
       <div className="flex">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "Updating…" : "Change password"}
+        <Button type="submit" disabled={isPending || reauthing}>
+          {reauthing ? "Signing out…" : isPending ? "Updating…" : "Change password"}
         </Button>
       </div>
     </form>

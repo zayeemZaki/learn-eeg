@@ -12,7 +12,7 @@ import {
   createAtlasEntry,
   updateAtlasEntry,
 } from "@/app/actions/admin-atlas";
-import { type ActionResult } from "@/app/actions/admin-questions";
+import { type ActionResult } from "@/app/actions/action-result";
 import {
   atlasEntrySchema,
   ATLAS_CATEGORY_LABELS,

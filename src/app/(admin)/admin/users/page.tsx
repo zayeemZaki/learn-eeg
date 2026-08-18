@@ -6,13 +6,12 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable, type Column } from "@/components/ui/data-table";
+import { Pager } from "@/components/ui/pager";
 import { Badge } from "@/components/ui/badge";
 import { POSITION_LABELS } from "@/lib/validations/auth";
+import { ADMIN_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
 
 export const metadata = { title: "Users" };
-
-// v1 cap: show the most recent N users with a note rather than full pagination.
-const USER_LIMIT = 100;
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -40,19 +39,28 @@ function RoleBadge({ role }: { role: Role }) {
 /**
  * Admin users list: who has signed up, with their profile and attempt volume.
  *
- * Two queries total, no N+1: one explicit-field findMany for the users (note
- * the select never includes passwordHash) and one groupBy that counts attempts
- * per user. The counts are joined in memory via a Map.
+ * Three queries total, no N+1: one explicit-field findMany for the page's users
+ * (note the select never includes passwordHash), one total count for the pager, and
+ * one groupBy counting attempts — scoped to the user ids ON THIS PAGE, so the
+ * aggregate does not scan the whole Attempt table to render 50 rows. The counts are
+ * joined in memory via a Map.
  *
  * Layout is responsive without becoming an overflow mess: stacked cards on
  * mobile, a horizontally-scrollable table from `sm` up, via the shared
  * DataTable. Showing emails is intentional — this is the owner's own admin view.
  */
-export default async function AdminUsersPage() {
-  const [users, attemptGroups] = await Promise.all([
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const page = resolvePage((await searchParams).page, ADMIN_PAGE_SIZE);
+
+  const [users, totalUsers] = await Promise.all([
     db.user.findMany({
       orderBy: { createdAt: "desc" },
-      take: USER_LIMIT,
+      skip: page.skip,
+      take: page.take,
       // Explicit fields only — passwordHash is deliberately excluded.
       select: {
         id: true,
@@ -64,16 +72,22 @@ export default async function AdminUsersPage() {
         createdAt: true,
       },
     }),
-    db.attempt.groupBy({
-      by: ["userId"],
-      _count: { _all: true },
-    }),
+    db.user.count(),
   ]);
+
+  // Attempt counts only for the users we are about to render.
+  const attemptGroups = await db.attempt.groupBy({
+    by: ["userId"],
+    where: { userId: { in: users.map((u) => u.id) } },
+    _count: { _all: true },
+  });
 
   // userId -> attempt count. Users with no attempts are simply absent → 0.
   const attemptsByUser = new Map(
     attemptGroups.map((g) => [g.userId, g._count._all]),
   );
+
+  const info = pageInfo(page, totalUsers);
 
   const rows: UserRow[] = users.map((user) => ({
     ...user,
@@ -102,11 +116,9 @@ export default async function AdminUsersPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Users"
-        description={
-          rows.length === USER_LIMIT
-            ? `Showing the ${USER_LIMIT} most recent users.`
-            : `${rows.length} ${rows.length === 1 ? "user" : "users"} total.`
-        }
+        description={`${totalUsers.toLocaleString()} ${
+          totalUsers === 1 ? "user" : "users"
+        } total.`}
       />
 
       {rows.length === 0 ? (
@@ -157,6 +169,12 @@ export default async function AdminUsersPage() {
           )}
         />
       )}
+
+      <Pager
+        info={info}
+        hrefForPage={(p) => `/admin/users?page=${p}`}
+        itemLabel="users"
+      />
     </div>
   );
 }

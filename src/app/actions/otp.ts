@@ -16,7 +16,11 @@
  *  - Unlike the 256-bit reset token, a 6-digit code is brute-forceable
  *    (1,000,000 possibilities): each row tracks `attempts` and locks out after
  *    MAX_ATTEMPTS wrong guesses, on top of IP + email-keyed rate limiting on
- *    the send side.
+ *    the send side. Because issuing a new code deletes the old row, the per-row
+ *    counter alone would let an attacker reset their own lockout by requesting
+ *    another code; sendOtp therefore also refuses to issue while this email has
+ *    accumulated MAX_FAILED_ATTEMPTS_PER_EMAIL_PER_HOUR failures in the last
+ *    hour (see recordFailedAttempt / the send-side guard).
  *  - "Which email is mid-verification" is carried in a short-lived httpOnly
  *    cookie (not a URL param) so it's never in browser history, referrer
  *    headers, or server logs. A second cookie, set only after a successful
@@ -26,11 +30,17 @@ import { cookies } from "next/headers";
 
 import { db } from "@/lib/db";
 import { sendOtpEmail } from "@/lib/email";
-import { generateOtp, hashOtp, OTP_TTL_MS, MAX_ATTEMPTS } from "@/lib/otp";
+import {
+  generateOtp,
+  hashOtp,
+  verifyOtpHash,
+  OTP_TTL_MS,
+  MAX_ATTEMPTS,
+} from "@/lib/otp";
 import { rateLimit, OTP_REQUEST_RULE } from "@/lib/rate-limit";
+import { pruneExpiredEmailVerificationOtps } from "@/lib/token-cleanup";
 import { sendOtpSchema, verifyOtpSchema } from "@/lib/validations/auth";
-
-export type ActionResult = { ok: true } | { ok: false; error: string };
+import { type ActionResult } from "@/app/actions/action-result";
 
 // Cookie carrying which email is mid-verification, set by sendOtp and read by
 // verifyOtp. Plain text — an email address isn't a secret — but httpOnly so
@@ -50,6 +60,24 @@ const OTP_VERIFIED_COOKIE_MAX_AGE_S = 15 * 60; // a little slack past verify to 
 // password-reset.ts's throttle does, just via a count instead of a recency
 // check since we expect legitimate resends here.
 const MAX_OTP_SENDS_PER_EMAIL_PER_HOUR = 3;
+
+// Cumulative wrong-guess ceiling per email per hour, ACROSS codes. The per-row
+// `attempts` counter caps guesses against one code, but sendOtp deletes the prior
+// row when issuing a new one, so on its own it resets every time the attacker
+// asks for another code. Summing recent failures closes that loop and makes the
+// real budget MAX_FAILED_ATTEMPTS_PER_EMAIL_PER_HOUR per hour, not
+// MAX_ATTEMPTS × the send cap.
+const MAX_FAILED_ATTEMPTS_PER_EMAIL_PER_HOUR = 10;
+
+/** Failed guesses recorded for this email within the trailing hour. */
+async function recentFailedAttempts(email: string): Promise<number> {
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const rows = await db.emailVerificationOtp.findMany({
+    where: { email, createdAt: { gte: hourAgo } },
+    select: { attempts: true },
+  });
+  return rows.reduce((sum, row) => sum + row.attempts, 0);
+}
 
 function hashCookieOpts(maxAgeSeconds: number) {
   return {
@@ -81,6 +109,13 @@ export async function sendOtp(raw: unknown): Promise<ActionResult> {
   const { email } = parsed.data; // normalized (trim + lowercase) by the schema
 
   try {
+    // A fresh code must not hand back a fresh guess budget while this email is
+    // already locked out for the hour — otherwise the per-row lockout is
+    // trivially reset. Same generic success, no new code minted.
+    if ((await recentFailedAttempts(email)) >= MAX_FAILED_ATTEMPTS_PER_EMAIL_PER_HOUR) {
+      return { ok: true };
+    }
+
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentCount = await db.emailVerificationOtp.count({
       where: { email, createdAt: { gte: hourAgo } },
@@ -114,6 +149,10 @@ export async function sendOtp(raw: unknown): Promise<ActionResult> {
     } catch (error) {
       console.error("OTP email failed to send:", error);
     }
+
+    // Opportunistic housekeeping: drop long-expired codes (any email's) now that
+    // we're already writing to this table. Never throws.
+    await pruneExpiredEmailVerificationOtps();
 
     const store = await cookies();
     store.set(OTP_EMAIL_COOKIE, email, hashCookieOpts(OTP_EMAIL_COOKIE_MAX_AGE_S));
@@ -163,8 +202,13 @@ export async function verifyOtp(raw: unknown): Promise<ActionResult> {
     return { ok: false, error: "Too many attempts. Request a new code." };
   }
 
-  const submittedHash = hashOtp(code);
-  if (submittedHash !== record.codeHash) {
+  // Cumulative ceiling across codes for this email — a new code does not buy a
+  // new guess budget (see MAX_FAILED_ATTEMPTS_PER_EMAIL_PER_HOUR).
+  if ((await recentFailedAttempts(email)) >= MAX_FAILED_ATTEMPTS_PER_EMAIL_PER_HOUR) {
+    return { ok: false, error: "Too many attempts. Please try again later." };
+  }
+
+  if (!verifyOtpHash(code, record.codeHash)) {
     await db.emailVerificationOtp.update({
       where: { id: record.id },
       data: { attempts: { increment: 1 } },

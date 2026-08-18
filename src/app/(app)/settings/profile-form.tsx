@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import { updateProfile, reauthAfterEmailChange } from "@/app/actions/account";
+import { updateProfile, reauthAfterCredentialChange } from "@/app/actions/account";
 import { Button } from "@/components/ui/button";
 import { Field, inputClass } from "@/components/ui/field";
 
@@ -48,7 +48,7 @@ export function ProfileForm({
         // server action performs the signOut + redirect (throws a redirect).
         setReauthing(true);
         setSuccess("Email changed — please sign in again.");
-        await reauthAfterEmailChange();
+        await reauthAfterCredentialChange();
         return;
       }
       setSuccess("Profile updated.");

@@ -4,6 +4,20 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import { Pager } from "@/components/ui/pager";
+import { CONTENT_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
+
+/**
+ * Hard ceiling on questions loaded to build this list.
+ *
+ * The Answered/Unanswered filter depends on the viewer's own attempts, so it is
+ * applied in JS (see the note by the slice below) — which means the rows have to be
+ * in memory before they can be filtered and paged. This cap is what keeps that
+ * bounded. It is set far above the realistic size of a curated teaching bank; if
+ * the bank ever approaches it, the filter needs to move into SQL as a join against
+ * the user's attempts, and this list to a cursor.
+ */
+const MAX_LISTED_QUESTIONS = 1000;
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,18 +42,21 @@ export default async function QuestionsPage({
   // In Next 15+/16, searchParams is async and must be awaited.
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const status = parseStatus((await searchParams).status);
+  const params = await searchParams;
+  const status = parseStatus(params.status);
+  const page = resolvePage(params.page, CONTENT_PAGE_SIZE);
   const session = await auth();
   const userId = session?.user?.id;
 
-  // ── Two queries total (no per-row work). One for the questions, one grouping
-  //    the current user's attempts by (question, correctness). Grouping on the
-  //    boolean (rather than max-ing it — Postgres has no max(boolean)) lets us
-  //    derive both "answered" and "any attempt correct" for the subtle ✓/✗ hint
-  //    without selecting per-row.
-  const [questions, attemptGroups] = await Promise.all([
+  // ── Two queries total (no per-row work). One for the questions, one for the
+  //    current user's attempts. A user has at most ONE attempt per question
+  //    (Attempt carries @@unique([userId, questionId])), so this is a flat
+  //    questionId → isCorrect lookup: no grouping, and no "any attempt correct"
+  //    fold, because there is only ever one attempt to consult.
+  const [questions, attempts] = await Promise.all([
     db.question.findMany({
       orderBy: { createdAt: "asc" },
+      take: MAX_LISTED_QUESTIONS,
       // Count images (the gallery relation) for the "N EEG images" indicator,
       // replacing the legacy single-imageUrl boolean. imageUrl is also selected so
       // a legacy-only question (empty relation, populated legacy column) still
@@ -53,21 +70,15 @@ export default async function QuestionsPage({
       },
     }),
     userId
-      ? db.attempt.groupBy({
-          by: ["questionId", "isCorrect"],
+      ? db.attempt.findMany({
           where: { userId },
-          _count: { _all: true },
+          select: { questionId: true, isCorrect: true },
         })
       : Promise.resolve([]),
   ]);
 
-  // questionId -> "any attempt correct?" Presence of a key === answered. A
-  // question may have both a correct and an incorrect group; once any group is
-  // correct, the question counts as correct.
-  const answeredById = new Map<string, boolean>();
-  for (const g of attemptGroups) {
-    answeredById.set(g.questionId, (answeredById.get(g.questionId) ?? false) || g.isCorrect);
-  }
+  // questionId -> was it answered correctly. Presence of a key === answered.
+  const answeredById = new Map(attempts.map((a) => [a.questionId, a.isCorrect]));
 
   const decorated = questions.map((q) => ({
     id: q.id,
@@ -77,7 +88,7 @@ export default async function QuestionsPage({
     // relation + populated legacy imageUrl) so the indicator matches the loader.
     imageCount: q._count.images > 0 ? q._count.images : q.imageUrl ? 1 : 0,
     answered: answeredById.has(q.id),
-    anyCorrect: answeredById.get(q.id) ?? null,
+    isCorrect: answeredById.get(q.id) ?? null,
   }));
 
   const answeredCount = decorated.filter((q) => q.answered).length;
@@ -87,11 +98,28 @@ export default async function QuestionsPage({
     unanswered: decorated.length - answeredCount,
   };
 
-  const visible = decorated.filter((q) => {
+  const matching = decorated.filter((q) => {
     if (status === "answered") return q.answered;
     if (status === "unanswered") return !q.answered;
     return true;
   });
+
+  // The Answered/Unanswered filter is a property of THIS user's attempts, not of
+  // the question row, so it cannot be expressed as a `where` on the question query
+  // without a per-user join; the filter therefore stays in JS and the page window
+  // is applied to its result. The two queries above are already bounded (questions
+  // are capped by MAX_LISTED_QUESTIONS, attempts by one row per answered question),
+  // so this slices an in-memory list rather than growing the query.
+  const info = pageInfo(page, matching.length);
+  const visible = matching.slice(page.skip, page.skip + page.take);
+
+  // Paging must PRESERVE the status filter.
+  const hrefForPage = (next: number) => {
+    const query = new URLSearchParams();
+    if (status !== "all") query.set("status", status);
+    query.set("page", String(next));
+    return `/questions?${query.toString()}`;
+  };
 
   const tabs = [
     { label: "All", href: "/questions", active: status === "all", count: counts.all },
@@ -150,8 +178,8 @@ export default async function QuestionsPage({
                     </Badge>
                   )}
                   {/* Subtle correctness hint, icon+label so it isn't color-only. */}
-                  {q.answered && q.anyCorrect !== null ? (
-                    q.anyCorrect ? (
+                  {q.answered && q.isCorrect !== null ? (
+                    q.isCorrect ? (
                       <Badge variant="subtle" tone="positive" icon={<CheckIcon className="h-3.5 w-3.5 shrink-0" />}>
                         Correct
                       </Badge>
@@ -167,6 +195,8 @@ export default async function QuestionsPage({
           ))}
         </ul>
       )}
+
+      <Pager info={info} hrefForPage={hrefForPage} itemLabel="questions" />
     </div>
   );
 }

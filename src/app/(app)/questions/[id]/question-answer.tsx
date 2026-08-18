@@ -64,6 +64,11 @@ function optionLetter(index: number): string {
  *
  * The selected choice id is sent only on Submit. Color is never the sole
  * correctness signal — it is always paired with an icon+label marker.
+ *
+ * The answered group is marked `aria-disabled`, NOT `disabled`: it must stay
+ * focusable and arrow-navigable so a keyboard or screen-reader user can review
+ * which option they picked and which was correct. Interaction is blocked in the
+ * handlers instead of by the DOM.
  */
 export function QuestionAnswer({ question }: { question: ClientQuestion }) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -118,8 +123,11 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
   // Radiogroup keyboard model: arrows move the selection (and focus) with wrap,
   // Space/Enter selects the focused option. Roving tabindex (below) keeps a
   // single tab stop for the whole group.
+  //
+  // Once answered, arrows still MOVE FOCUS so the reviewed answer can be read
+  // option by option — they just no longer change the selection (select() is a
+  // no-op then). Only Space/Enter is inert.
   function onKeyDown(e: React.KeyboardEvent, index: number) {
-    if (answered) return;
     const count = question.choices.length;
     let next = index;
     switch (e.key) {
@@ -134,7 +142,7 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
       case " ":
       case "Enter":
         e.preventDefault();
-        select(question.choices[index].id);
+        if (!answered) select(question.choices[index].id);
         return;
       default:
         return;
@@ -198,7 +206,11 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
           const letter = optionLetter(index);
           // Roving tabindex: exactly one option is in the tab order — the
           // selected one, or the first option when nothing is selected yet.
-          const isTabStop = isSelected || (selected === null && index === 0);
+          // Exactly one option is in the tab order: the selected/picked one, or
+          // the first option when nothing is picked yet. Holds after answering
+          // too, so Tab lands on the answer the user gave.
+          const isTabStop =
+            isSelected || (pickedChoiceId === null && selected === null && index === 0);
           return (
             <button
               key={choice.id}
@@ -210,11 +222,18 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
               aria-checked={isSelected}
               // Screen readers announce "a, [choice text]" via this label.
               aria-label={`${letter}, ${choice.text}`}
-              tabIndex={answered ? -1 : isTabStop ? 0 : -1}
-              disabled={answered || isPending}
+              // The answered group stays REACHABLE: aria-disabled (not the
+              // `disabled` attribute) marks it read-only, because a disabled
+              // button is removed from the tab order and skipped by screen-reader
+              // navigation — which would make the reviewed answer, the one thing
+              // this screen exists to show, unreadable by keyboard. Clicks are
+              // already inert via select()/submit()'s own answered guards.
+              aria-disabled={answered || isPending}
+              tabIndex={isTabStop ? 0 : -1}
+              disabled={isPending && !answered}
               onClick={() => select(choice.id)}
               onKeyDown={(e) => onKeyDown(e, index)}
-              className={`flex items-center justify-between rounded-xl border px-4 py-4 text-left text-sm transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:cursor-default ${choiceStyle(choice.id)}`}
+              className={`flex items-center justify-between rounded-xl border px-4 py-4 text-left text-sm transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] aria-disabled:cursor-default disabled:cursor-default ${choiceStyle(choice.id)}`}
             >
               <span className="flex min-w-0 items-center gap-3">
                 {/* Letter badge — positional label, decorative for SR (the letter

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable, type Column } from "@/components/ui/data-table";
+import { Pager } from "@/components/ui/pager";
+import { ADMIN_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
 import { Badge } from "@/components/ui/badge";
 import { ImageIcon } from "@/components/ui/icons";
 
@@ -27,21 +29,35 @@ interface ArticleRow {
  * zone"), so the list carries no per-row delete. Rendered through the shared
  * DataTable (stacked cards on mobile, a scrollable table from sm up).
  *
- * One query: a single findMany ordered newest-first. Reading nothing sensitive;
- * this is an admin-only view (the /admin layout + proxy already gate it).
+ * Two queries: one paginated findMany ordered newest-first, and one total count
+ * for the pager. Reading nothing sensitive; this is an admin-only view (the /admin
+ * layout + proxy already gate it).
  */
-export default async function AdminArticlesPage() {
-  const articles = await db.article.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      title: true,
-      source: true,
-      publishedAt: true,
-      url: true,
-      imageUrl: true,
-    },
-  });
+export default async function AdminArticlesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const page = resolvePage((await searchParams).page, ADMIN_PAGE_SIZE);
+
+  const [articles, totalArticles] = await Promise.all([
+    db.article.findMany({
+      orderBy: { createdAt: "desc" },
+      skip: page.skip,
+      take: page.take,
+      select: {
+        id: true,
+        title: true,
+        source: true,
+        publishedAt: true,
+        url: true,
+        imageUrl: true,
+      },
+    }),
+    db.article.count(),
+  ]);
+
+  const info = pageInfo(page, totalArticles);
 
   const rows: ArticleRow[] = articles.map((a) => ({
     id: a.id,
@@ -100,7 +116,9 @@ export default async function AdminArticlesPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Literature"
-        description={`${rows.length} ${rows.length === 1 ? "article" : "articles"}.`}
+        description={`${totalArticles.toLocaleString()} ${
+          totalArticles === 1 ? "article" : "articles"
+        }.`}
         actions={
           <Link href="/admin/articles/new">
             <Button>New article</Button>
@@ -142,6 +160,12 @@ export default async function AdminArticlesPage() {
           )}
         />
       )}
+
+      <Pager
+        info={info}
+        hrefForPage={(p) => `/admin/articles?page=${p}`}
+        itemLabel="articles"
+      />
     </div>
   );
 }

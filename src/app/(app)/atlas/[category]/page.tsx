@@ -7,6 +7,8 @@ import { EegImage } from "@/components/ui/eeg-image";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Pager } from "@/components/ui/pager";
+import { CONTENT_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
 
 // Public URL slugs map to enum values; unknown slugs 404. This ordered list is
 // the single source of truth for both the routing and the tab bar below.
@@ -18,17 +20,30 @@ const CATEGORY_TABS: { slug: string; category: AtlasCategory; title: string }[] 
 // In Next 15+/16, dynamic params are async and must be awaited.
 export default async function AtlasCategoryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ category: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { category: slug } = await params;
   const current = CATEGORY_TABS.find((t) => t.slug === slug);
   if (!current) notFound();
 
-  const entries = await db.atlasEntry.findMany({
-    where: { category: current.category },
-    orderBy: { title: "asc" },
-  });
+  const page = resolvePage((await searchParams).page, CONTENT_PAGE_SIZE);
+
+  const [entries, totalEntries] = await Promise.all([
+    db.atlasEntry.findMany({
+      where: { category: current.category },
+      orderBy: { title: "asc" },
+      skip: page.skip,
+      take: page.take,
+      // Explicit fields — the card renders exactly these.
+      select: { id: true, title: true, description: true, imageUrl: true },
+    }),
+    db.atlasEntry.count({ where: { category: current.category } }),
+  ]);
+
+  const info = pageInfo(page, totalEntries);
 
   const tabs = CATEGORY_TABS.map((t) => ({
     // Short tab labels; the active tab also titles the section below.
@@ -59,6 +74,12 @@ export default async function AtlasCategoryPage({
           ))}
         </div>
       )}
+
+      <Pager
+        info={info}
+        hrefForPage={(p) => `/atlas/${current.slug}?page=${p}`}
+        itemLabel="entries"
+      />
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { Field, inputClass } from "@/components/ui/field";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { EegImageUpload } from "@/components/admin/eeg-image-upload";
 import { createArticle, updateArticle } from "@/app/actions/admin-articles";
-import { type ActionResult } from "@/app/actions/admin-questions";
+import { type ActionResult } from "@/app/actions/action-result";
 import { articleSchema, type ArticleInput } from "@/lib/validations/article";
 
 interface ArticleFormProps {

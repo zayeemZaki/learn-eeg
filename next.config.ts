@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // EEG atlas images may be served from object storage (S3 / Vercel Blob).
-  // Whitelist remote hosts explicitly rather than disabling optimization.
+  // EEG images live in Vercel Blob. Pinned to that host: a wildcard hostname
+  // turns the built-in image optimizer into an open proxy — anyone could fetch
+  // arbitrary remote URLs through our deployment, on our bandwidth and CPU.
   images: {
-    remotePatterns: [{ protocol: "https", hostname: "**" }],
+    remotePatterns: [
+      { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
+    ],
   },
 };
 

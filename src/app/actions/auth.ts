@@ -14,8 +14,7 @@ import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
 import { rateLimit, LOGIN_RULE, REGISTER_RULE } from "@/lib/rate-limit";
 import { registerSchema, loginSchema } from "@/lib/validations/auth";
-
-export type ActionResult = { ok: true } | { ok: false; error: string };
+import { type ActionResult } from "@/app/actions/action-result";
 
 // Generic, non-revealing message for a throttled request: it discloses neither
 // whether the email exists nor how many attempts remain.

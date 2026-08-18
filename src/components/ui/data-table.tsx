@@ -16,7 +16,7 @@ export interface Column<T> {
   headerSrOnly?: boolean;
 }
 
-interface DataTableProps<T> {
+interface DataTableBaseProps<T> {
   /** Column definitions, in display order. */
   columns: Column<T>[];
   /** The rows to render. */
@@ -47,11 +47,25 @@ interface DataTableProps<T> {
    * engine, so anchoring one overlay per cell keeps the hit area inside the row.
    */
   rowHref?: (row: T) => string;
-  /** Accessible label for the stretched row link (e.g. `Edit ${row.name}`). */
+  /**
+   * Accessible label for the stretched row link (e.g. `Edit ${row.name}`).
+   * REQUIRED whenever `rowHref` is passed — see the RowLinkProps union below:
+   * a clickable row with no name is an unlabelled link to a screen reader.
+   */
   rowLabel?: (row: T) => string;
   /** Minimum table width before the bordered surface scrolls horizontally. */
   minWidthClass?: string;
 }
+
+/**
+ * Row-link props travel as a PAIR: either both `rowHref` and `rowLabel`, or
+ * neither. Typing it as a union (rather than two independent optional props) is
+ * what makes "clickable but unnamed" unrepresentable instead of merely
+ * discouraged — the a11y rule is enforced by the compiler, at every call site.
+ */
+type RowLinkProps<T> =
+  | { rowHref: (row: T) => string; rowLabel: (row: T) => string }
+  | { rowHref?: undefined; rowLabel?: undefined };
 
 const alignClass: Record<NonNullable<Column<unknown>["align"]>, string> = {
   left: "text-left",
@@ -78,7 +92,7 @@ export function DataTable<T>({
   rowHref,
   rowLabel,
   minWidthClass = "min-w-[44rem]",
-}: DataTableProps<T>) {
+}: DataTableBaseProps<T> & RowLinkProps<T>) {
   return (
     <>
       {/* Mobile: one card per row. */}
@@ -107,12 +121,17 @@ export function DataTable<T>({
           </thead>
           <tbody>
             {rows.map((row) => {
-              const href = rowHref?.(row);
+              // Narrow the href/label PAIR once here: RowLinkProps guarantees
+              // they arrive together, but destructured params lose that link, so
+              // this is what lets the label be used without a non-null assertion.
+              const rowLink = rowHref
+                ? { href: rowHref(row), label: rowLabel(row) }
+                : null;
               return (
                 <tr
                   key={rowKey(row)}
                   className={`border-b border-[var(--border)] last:border-0 ${
-                    href
+                    rowLink
                       ? // Whole-row link: a subtle hover/focus fill plus a focus
                         // ring driven by the first cell's overlay link (the
                         // overlays themselves are anchored per <td>).
@@ -124,27 +143,38 @@ export function DataTable<T>({
                     <td
                       key={i}
                       className={`px-4 py-3 ${alignClass[col.align ?? "left"]} ${
-                        href ? "relative" : ""
+                        rowLink ? "relative" : ""
                       } ${col.className ?? ""}`}
                     >
                       {/* One stretched overlay link per cell, anchored to THIS
                           <td>. Together they cover the whole row, so a tap
                           anywhere in the row opens it, while the hit area can
                           never leak outside the row (see rowHref's note on
-                          Safari and `position: relative` on <tr>). Only the
-                          first cell's link is reachable by keyboard; the rest
-                          are hidden from the tab order and the a11y tree so the
-                          row is announced once. */}
-                      {href ? (
-                        <Link
-                          href={href}
-                          aria-label={i === 0 ? rowLabel?.(row) : undefined}
-                          aria-hidden={i === 0 ? undefined : true}
-                          tabIndex={i === 0 ? undefined : -1}
-                          className="absolute inset-0 outline-none"
-                        >
-                          {i === 0 ? <span className="sr-only">{rowLabel?.(row)}</span> : null}
-                        </Link>
+                          Safari and `position: relative` on <tr>).
+
+                          The FIRST cell's overlay carries the row's accessible
+                          name, as sr-only text rather than aria-label: one
+                          naming mechanism, not two competing ones. The remaining
+                          overlays are pure mouse/touch hit area — they are taken
+                          out of the tab order AND hidden from the a11y tree, so
+                          the row is announced exactly once instead of once per
+                          column. */}
+                      {rowLink ? (
+                        i === 0 ? (
+                          <Link
+                            href={rowLink.href}
+                            className="absolute inset-0 outline-none"
+                          >
+                            <span className="sr-only">{rowLink.label}</span>
+                          </Link>
+                        ) : (
+                          <Link
+                            href={rowLink.href}
+                            aria-hidden
+                            tabIndex={-1}
+                            className="absolute inset-0 outline-none"
+                          />
+                        )
                       ) : null}
                       {/* Cell content is left unpositioned so the absolute overlay
                           link paints above it and the whole row stays clickable.

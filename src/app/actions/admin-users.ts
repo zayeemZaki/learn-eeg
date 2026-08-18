@@ -1,5 +1,22 @@
 "use server";
 
+/**
+ * Admin user administration: edit any user's profile + role, reset their
+ * password, delete them. Each action is an independently-invocable public
+ * endpoint, so the route/page guard is NOT sufficient — every one re-checks
+ * role === "ADMIN" at the top (requireAdmin, which also re-reads the CURRENT role
+ * from the database) and re-validates its input with the shared zod schema.
+ *
+ * PRIVILEGE GUARDS, beyond "is an admin". An admin acting on users can lock
+ * everyone out, so two invariants are enforced here rather than in the UI:
+ *  - no self role-change and no self-delete (an admin cannot strip their own
+ *    access), compared against the actor id from the SESSION, never the payload;
+ *  - the last remaining ADMIN can be neither demoted nor deleted, so the platform
+ *    always has someone who can administer it.
+ *
+ * A password reset also bumps the target's session watermark, revoking every token
+ * that account already holds — see src/lib/auth-guards.ts.
+ */
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
@@ -10,8 +27,7 @@ import {
   adminUpdateUserSchema,
   adminResetPasswordSchema,
 } from "@/lib/validations/auth";
-
-export type ActionResult = { ok: true } | { ok: false; error: string };
+import { type ActionResult } from "@/app/actions/action-result";
 
 export async function updateUser(
   targetId: string,
@@ -65,10 +81,19 @@ export async function updateUser(
   }
 
   try {
-    await db.user.update({
-      where: { id: targetId },
-      data: { name, email, position, institution, role },
-    });
+    // Any pending verification codes belong to the OLD address (that table is
+    // keyed on email, not on a user id), so they can never apply to the new one.
+    // Clearing them in the same transaction keeps the change atomic and stops the
+    // rows lingering unreachable.
+    await db.$transaction([
+      db.user.update({
+        where: { id: targetId },
+        data: { name, email, position, institution, role },
+      }),
+      ...(emailChanged
+        ? [db.emailVerificationOtp.deleteMany({ where: { email: target.email } })]
+        : []),
+    ]);
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -105,9 +130,15 @@ export async function adminResetPassword(
   });
   if (!target) return { ok: false, error: "User not found" };
 
+  // Bump the session watermark alongside the hash: an admin resetting someone's
+  // password is often responding to a compromise, so every token that account
+  // already holds must stop working rather than outliving the reset.
   await db.user.update({
     where: { id: targetId },
-    data: { passwordHash: await hashPassword(parsed.data.newPassword) },
+    data: {
+      passwordHash: await hashPassword(parsed.data.newPassword),
+      sessionsValidFrom: new Date(),
+    },
   });
 
   revalidatePath("/admin/users");

@@ -65,6 +65,13 @@ model User {
   image        String?
   // Reserved for future OAuth verification; unused by the credentials flow.
   emailVerified DateTime?
+  // Session-invalidation watermark. Sessions are JWT, so a password change can
+  // NOT be revoked by deleting a row — an already-issued token stays valid until
+  // it expires. So every token records the moment it was minted, and the jwt
+  // callback rejects any token minted at or before this timestamp. Bumped
+  // whenever credentials change (self-service password change, admin reset,
+  // forgot-password reset), which logs every other device out.
+  sessionsValidFrom DateTime @default(now())
 
   accounts Account[]
   sessions Session[]

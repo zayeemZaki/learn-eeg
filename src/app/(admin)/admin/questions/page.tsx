@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable, type Column } from "@/components/ui/data-table";
+import { Pager } from "@/components/ui/pager";
 import { Badge } from "@/components/ui/badge";
 import { ImageIcon } from "@/components/ui/icons";
+import { ADMIN_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
 
 export const metadata = { title: "Questions" };
 
@@ -29,14 +31,24 @@ interface QuestionRow {
  * through the shared DataTable (stacked cards on mobile, a scrollable table from
  * sm up).
  *
- * Two queries, no N+1: one findMany with a `_count` of choices, and one groupBy
- * that counts attempts per question, joined in memory via a Map. Reading
- * isCorrect is irrelevant here (not selected); this is an admin-only view.
+ * Three queries, no N+1: one findMany for the page's questions (with a `_count`
+ * of choices), one total count for the pager, and one groupBy counting attempts —
+ * scoped to the question ids ON THIS PAGE, so neither the row fetch nor the
+ * aggregate grows with the table. Joined in memory via a Map. Reading isCorrect is
+ * irrelevant here (not selected); this is an admin-only view.
  */
-export default async function AdminQuestionsPage() {
-  const [questions, attemptGroups] = await Promise.all([
+export default async function AdminQuestionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const page = resolvePage((await searchParams).page, ADMIN_PAGE_SIZE);
+
+  const [questions, totalQuestions] = await Promise.all([
     db.question.findMany({
       orderBy: { createdAt: "desc" },
+      skip: page.skip,
+      take: page.take,
       select: {
         id: true,
         number: true, // stable ordinal, shown as "#N" (system-assigned, read-only)
@@ -49,12 +61,21 @@ export default async function AdminQuestionsPage() {
         _count: { select: { choices: true, images: true } },
       },
     }),
-    db.attempt.groupBy({ by: ["questionId"], _count: { _all: true } }),
+    db.question.count(),
   ]);
+
+  // Attempt counts only for the rows we are about to render.
+  const attemptGroups = await db.attempt.groupBy({
+    by: ["questionId"],
+    where: { questionId: { in: questions.map((q) => q.id) } },
+    _count: { _all: true },
+  });
 
   const attemptsByQuestion = new Map(
     attemptGroups.map((g) => [g.questionId, g._count._all]),
   );
+
+  const info = pageInfo(page, totalQuestions);
 
   const rows: QuestionRow[] = questions.map((q) => ({
     id: q.id,
@@ -109,7 +130,9 @@ export default async function AdminQuestionsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Questions"
-        description={`${rows.length} ${rows.length === 1 ? "question" : "questions"}.`}
+        description={`${totalQuestions.toLocaleString()} ${
+          totalQuestions === 1 ? "question" : "questions"
+        }.`}
         actions={
           <Link href="/admin/questions/new">
             <Button>New question</Button>
@@ -154,6 +177,12 @@ export default async function AdminQuestionsPage() {
           )}
         />
       )}
+
+      <Pager
+        info={info}
+        hrefForPage={(p) => `/admin/questions?page=${p}`}
+        itemLabel="questions"
+      />
     </div>
   );
 }

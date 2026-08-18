@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { EegImage } from "@/components/ui/eeg-image";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pager } from "@/components/ui/pager";
+import { ADMIN_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -52,9 +54,9 @@ function CategoryBadge({ category }: { category: AtlasCategory }) {
  * filters by category (All | Normal | Abnormal) via the URL; the list renders
  * through the shared DataTable.
  *
- * One query: a single findMany, optionally narrowed by the category filter and
- * ordered by title. Counts for the tab badges come from a cheap groupBy so the
- * tabs show how many entries each category holds without a per-tab query.
+ * Two queries: one paginated findMany, optionally narrowed by the category filter
+ * and ordered by title, plus a cheap groupBy whose counts feed BOTH the tab badges
+ * and the pager's total (so paginating costs no extra count query).
  */
 export default async function AdminAtlasPage({
   searchParams,
@@ -62,13 +64,17 @@ export default async function AdminAtlasPage({
   // In Next 15+/16, searchParams is async and must be awaited.
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const filter = parseCategory((await searchParams).category);
+  const params = await searchParams;
+  const filter = parseCategory(params.category);
   const activeCategory = CATEGORY_TABS.find((t) => t.slug === filter)?.category;
+  const page = resolvePage(params.page, ADMIN_PAGE_SIZE);
 
   const [entries, categoryGroups] = await Promise.all([
     db.atlasEntry.findMany({
       where: activeCategory ? { category: activeCategory } : undefined,
       orderBy: { title: "asc" },
+      skip: page.skip,
+      take: page.take,
       select: {
         id: true,
         title: true,
@@ -85,6 +91,21 @@ export default async function AdminAtlasPage({
     categoryGroups.map((g) => [g.category, g._count._all]),
   );
   const total = categoryGroups.reduce((sum, g) => sum + g._count._all, 0);
+
+  // Pager total follows the active filter, not the whole table.
+  const filteredTotal = activeCategory
+    ? countByCategory.get(activeCategory) ?? 0
+    : total;
+  const info = pageInfo(page, filteredTotal);
+
+  // Paging must PRESERVE the category filter — otherwise "next page" silently
+  // widens the view back to every category.
+  const hrefForPage = (next: number) => {
+    const query = new URLSearchParams();
+    if (filter !== "all") query.set("category", filter);
+    query.set("page", String(next));
+    return `/admin/atlas?${query.toString()}`;
+  };
 
   const tabs = [
     { label: "All", href: "/admin/atlas", active: filter === "all", count: total },
@@ -171,6 +192,8 @@ export default async function AdminAtlasPage({
           )}
         />
       )}
+
+      <Pager info={info} hrefForPage={hrefForPage} itemLabel="entries" />
     </div>
   );
 }

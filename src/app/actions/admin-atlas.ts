@@ -5,8 +5,8 @@
  * endpoint, so the route/page guard is NOT sufficient: every action re-checks
  * role === "ADMIN" at the very top (requireAdmin) and re-validates its input
  * with the shared zod schema before touching the database. Never trust the
- * client. (Same contract as admin-questions.ts; the ActionResult type is reused
- * from there so the two stay in lockstep.)
+ * client. (Same contract as admin-questions.ts — both share the ActionResult
+ * shape from @/app/actions/action-result.)
  *
  * An AtlasEntry is FLAT — scalar fields only, with no nested relations and no
  * inbound foreign keys — so create/update are single writes and delete is a
@@ -28,7 +28,7 @@ import { requireAdmin } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { deleteBlobs } from "@/lib/blob-cleanup";
 import { atlasEntrySchema, type AtlasEntryInput } from "@/lib/validations/atlas";
-import { type ActionResult } from "@/app/actions/admin-questions";
+import { type ActionResult } from "@/app/actions/action-result";
 
 /**
  * Drop the caches that show atlas entries: the admin list and BOTH public

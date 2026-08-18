@@ -3,18 +3,18 @@
  * dashboard and the admin overview. Centralised so every screen agrees on what a
  * number means; pages never recompute accuracy inline.
  *
- * THE ACCURACY DEFINITION (used everywhere): a question's correctness is its
- * LATEST attempt, by createdAt. Because the retry model allows multiple Attempts
- * per (user, question) and there is no unique constraint, counting raw attempts
- * would let a user inflate "accuracy" by re-answering. So every accuracy figure
- * here first reduces a scope's attempts to the most recent attempt per
- * (user, question) and computes correct / total over those latest attempts only.
+ * THE ACCURACY DEFINITION (used everywhere): correct / total over a scope's
+ * attempts. This is exact and needs no de-duplication because the SINGLE-ATTEMPT
+ * model is enforced by the database: Attempt carries
+ * `@@unique([userId, questionId])` (migration 20260706165747), so a user has at
+ * most ONE attempt per question and there is no "retry" to collapse. An attempt
+ * row and an answered question are the same thing.
  *
- * groupBy cannot express "the latest row per group", so the pattern throughout is
- * the codebase's existing join-in-JS idiom: one findMany pulls the minimal
- * columns ({ userId?, questionId, isCorrect, createdAt }), and we reduce in JS
- * via a Map keyed by the question (user scope) or by userId+questionId (global).
- * One query per view — never per-row.
+ * (Historically this module reduced each scope to its latest attempt per question
+ * to stop users inflating accuracy by re-answering. The unique constraint made
+ * that reduction dead weight — one row per question is now a database invariant,
+ * not something to recompute in JS. If a retry model is ever reintroduced, that
+ * constraint is what has to change first, and this doc with it.)
  *
  * BOUNDARY: every function here runs server-side and returns only computed
  * numbers / labels. Raw `isCorrect` rows and `passwordHash` never leave this
@@ -24,18 +24,19 @@
  * date_trunc helper exposed through Prisma without raw SQL), defaulting to day
  * granularity with a caller-chosen window.
  */
-import { QuestionCategory } from "@prisma/client";
+import { AtlasCategory, QuestionCategory } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { ATLAS_CATEGORY_LABELS } from "@/lib/validations/atlas";
 import { QUESTION_CATEGORY_LABELS } from "@/lib/validations/question";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
-/** correct / total over LATEST-per-question attempts, plus the derived percent. */
+/** correct / total over the attempts in scope, plus the derived percent. */
 export interface Accuracy {
-  /** Distinct questions that have at least one attempt in scope. */
+  /** Questions answered in scope (one attempt per question — see the header). */
   total: number;
-  /** Of those, how many have a CORRECT latest attempt. */
+  /** Of those, how many were answered correctly. */
   correct: number;
   /** Rounded 0–100, or null when total === 0 (no attempts → "—", not "0%"). */
   percent: number | null;
@@ -66,7 +67,7 @@ export interface Trend {
   delta: number | null;
 }
 
-/** A question ranked by difficulty-in-practice (lowest latest-accuracy first). */
+/** A question ranked by difficulty-in-practice (lowest accuracy first). */
 export interface HardestQuestion {
   id: string;
   stem: string;
@@ -85,28 +86,11 @@ function toPercent(correct: number, total: number): number | null {
 const EMPTY_ACCURACY: Accuracy = { total: 0, correct: 0, percent: null };
 
 /**
- * Reduce a list of attempts to the latest attempt per question, then tally
- * correct / total. The attempts must already be scoped (a single user, or all
- * users for a single question) so that the question id alone identifies a group.
+ * Tally correct / total over a set of attempt rows. One row per (user, question)
+ * is a database invariant (see the header), so this is a plain count — no
+ * de-duplication step.
  */
-function accuracyFromLatestPerQuestion(
-  attempts: { questionId: string; isCorrect: boolean; createdAt: Date }[],
-): Accuracy {
-  // questionId -> the latest attempt's correctness.
-  const latest = new Map<string, { isCorrect: boolean; at: number }>();
-  for (const a of attempts) {
-    const at = a.createdAt.getTime();
-    const prev = latest.get(a.questionId);
-    if (!prev || at > prev.at) latest.set(a.questionId, { isCorrect: a.isCorrect, at });
-  }
-  let correct = 0;
-  for (const v of latest.values()) if (v.isCorrect) correct += 1;
-  const total = latest.size;
-  return { total, correct, percent: toPercent(correct, total) };
-}
-
-/** Accuracy over a set of already-latest rows (one row per question, in scope). */
-function accuracyOfLatestRows(rows: { isCorrect: boolean }[]): Accuracy {
+function accuracyOf(rows: { isCorrect: boolean }[]): Accuracy {
   const total = rows.length;
   const correct = rows.reduce((n, r) => (r.isCorrect ? n + 1 : n), 0);
   return { total, correct, percent: toPercent(correct, total) };
@@ -120,14 +104,8 @@ function dayKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/**
- * Bucket timestamps into a dense daily series spanning the last `days` days
- * (inclusive of today). Dense = every day present, zero-filled, so a line chart
- * has no gaps. `now` is passed in (request time) rather than read here, keeping
- * the function pure and testable. Counts only timestamps within the window.
- */
-function bucketByDay(timestamps: Date[], days: number, now: Date): TimePoint[] {
-  // Build the ordered day keys for the window [now-(days-1) .. now].
+/** The ordered day keys covering the window [now-(days-1) … now], inclusive. */
+function dayKeysForWindow(days: number, now: Date): string[] {
   const keys: string[] = [];
   const cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   cursor.setDate(cursor.getDate() - (days - 1));
@@ -135,12 +113,59 @@ function bucketByDay(timestamps: Date[], days: number, now: Date): TimePoint[] {
     keys.push(dayKey(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
+  return keys;
+}
+
+/**
+ * Bucket timestamps into a dense daily series spanning the last `days` days
+ * (inclusive of today). Dense = every day present, zero-filled, so a line chart
+ * has no gaps. `now` is passed in (request time) rather than read here, keeping
+ * the function pure and testable. Counts only timestamps within the window.
+ */
+function bucketByDay(timestamps: Date[], days: number, now: Date): TimePoint[] {
+  const keys = dayKeysForWindow(days, now);
   const counts = new Map<string, number>(keys.map((k) => [k, 0]));
   for (const t of timestamps) {
     const k = dayKey(t);
     if (counts.has(k)) counts.set(k, (counts.get(k) ?? 0) + 1);
   }
   return keys.map((date) => ({ date, count: counts.get(date) ?? 0 }));
+}
+
+/**
+ * One day-group from the trend queries: the day as an ALREADY-FORMATTED yyyy-mm-dd
+ * string, and how many rows fell in it.
+ *
+ * The day deliberately crosses the boundary as text, not as a Date. Postgres
+ * `... AT TIME ZONE '<zone>'` yields a zone-less `timestamp`, and the driver then
+ * reinterprets that naive value against the process offset — so reading it back as
+ * a Date shifts buckets by a day in either direction depending on which getters are
+ * used. Formatting in SQL (`to_char`) makes the key unambiguous: what the database
+ * grouped by is exactly what we compare against.
+ */
+interface DailyCountRow {
+  day: string;
+  count: number;
+}
+
+/**
+ * Zero-fill DB-side daily counts into the same dense series bucketByDay produces,
+ * so a chart fed from grouped SQL is indistinguishable from one fed from rows.
+ * Counts outside the window are ignored, exactly as bucketByDay ignores them.
+ *
+ * The rows already carry a yyyy-mm-dd string in the same zone dayKeysForWindow
+ * uses, so matching is a direct lookup — see DailyCountRow for why the key is text.
+ */
+function denseSeriesFromDailyCounts(
+  rows: DailyCountRow[],
+  days: number,
+  now: Date,
+): TimePoint[] {
+  const counts = new Map(rows.map((r) => [r.day, Number(r.count)]));
+  return dayKeysForWindow(days, now).map((date) => ({
+    date,
+    count: counts.get(date) ?? 0,
+  }));
 }
 
 /**
@@ -157,11 +182,18 @@ function windowBounds(now: Date, days: number): { prevStart: number; cutoff: num
 
 /** Everything the user dashboard renders, for one signed-in user. */
 export interface UserSummary {
-  /** Raw attempts logged (includes repeats) — "questions answered". */
-  totalAttempts: number;
-  /** Distinct questions the user has attempted at least once. */
-  distinctQuestions: number;
-  /** Latest-per-question accuracy across all the user's attempts. */
+  /**
+   * Questions this user has answered. One attempt per question is a database
+   * invariant (see the module header), so this is both the attempt count and the
+   * distinct-question count — there is no separate "distinct" figure to report.
+   */
+  questionsAnswered: number;
+  /**
+   * Size of the whole question bank, so the dashboard can frame progress as
+   * "answered N of M" instead of a bare count with nothing to compare against.
+   */
+  totalQuestions: number;
+  /** Accuracy across everything the user has answered. */
   accuracy: Accuracy;
   /** Most recent attempt time, or null if none — drives "last active". */
   lastActiveAt: Date | null;
@@ -171,26 +203,38 @@ export interface UserSummary {
   attemptsTrend: Trend;
   /**
    * Accuracy over the trailing window vs the one before, in percentage points.
-   * This is WINDOWED accuracy (every attempt in the period), not the headline
-   * latest-per-question figure — a period comparison has to score each period on
-   * what happened inside it.
+   * Scoped to what was answered INSIDE each period — a period comparison has to
+   * score each period on its own activity, so this differs from the headline
+   * all-time `accuracy` above.
    */
   accuracyTrend: Trend;
-  /** Latest-accuracy per difficulty level (1–3), only levels with attempts. */
+  /** Accuracy per difficulty level (1–3), only levels with attempts. */
   byDifficulty: AccuracyBreakdownItem[];
-  /** Latest-accuracy per question category, only categories with attempts. */
+  /** Accuracy per question category, only categories with attempts. */
   byCategory: AccuracyBreakdownItem[];
-  /** Weakest categories (lowest latest-accuracy first) — the focus areas. */
+  /** Weakest categories (lowest accuracy first) — the focus areas. */
   weakCategories: AccuracyBreakdownItem[];
 }
 
 const DIFFICULTY_LABELS: Record<number, string> = { 1: "Easy", 2: "Medium", 3: "Hard" };
 
 /**
- * Build the full user dashboard summary, scoped to ONE user. A single attempts
+ * Ceiling on attempt rows read to build one user's dashboard. Bounded by the
+ * question bank in practice (one attempt per question); present so this render path
+ * has a hard limit regardless of how the data grows.
+ */
+const MAX_USER_ATTEMPTS_SCANNED = 5000;
+
+/**
+ * Build the full user dashboard summary, scoped to ONE user. One attempts
  * findMany (filtered to this user, joined to each question's difficulty +
- * category) feeds every figure; everything else is in-memory reduction. Returns
- * only numbers/labels — no isCorrect rows escape.
+ * category) plus one bank-size count feed every figure; everything else is
+ * in-memory reduction. Returns only numbers/labels — no isCorrect rows escape.
+ *
+ * BOUNDEDNESS: the attempts read is capped at MAX_USER_ATTEMPTS_SCANNED. One
+ * attempt per question means this cannot exceed the size of the question bank, so
+ * the cap is a backstop rather than a truncation anyone should hit — but it keeps a
+ * page render from ever depending on an unbounded row count.
  *
  * @param userId  the signed-in user; the ONLY user whose data is read.
  * @param now     request time, for the trailing activity window.
@@ -201,59 +245,43 @@ export async function getUserSummary(
   now: Date,
   activityDays = 30,
 ): Promise<UserSummary> {
-  const attempts = await db.attempt.findMany({
-    where: { userId },
-    select: {
-      questionId: true,
-      isCorrect: true,
-      createdAt: true,
-      question: { select: { difficulty: true, category: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const [attempts, totalQuestions] = await Promise.all([
+    db.attempt.findMany({
+      where: { userId },
+      select: {
+        questionId: true,
+        isCorrect: true,
+        createdAt: true,
+        question: { select: { difficulty: true, category: true } },
+      },
+      orderBy: { createdAt: "asc" },
+      take: MAX_USER_ATTEMPTS_SCANNED,
+    }),
+    db.question.count(),
+  ]);
 
-  const totalAttempts = attempts.length;
-  const distinctQuestions = new Set(attempts.map((a) => a.questionId)).size;
+  const questionsAnswered = attempts.length;
   // Newest attempt time, derived from the data (not by trusting the query sort).
   const lastActiveAt = attempts.reduce<Date | null>(
     (newest, a) => (newest === null || a.createdAt > newest ? a.createdAt : newest),
     null,
   );
 
-  // Overall latest-per-question accuracy.
-  const accuracy = accuracyFromLatestPerQuestion(attempts);
+  const accuracy = accuracyOf(attempts);
 
-  // Per-difficulty + per-category: reduce latest-per-question once, then group.
-  // We first collapse to one latest attempt per question (carrying its
-  // difficulty + category), then tally each grouping over those latest rows.
-  const latestPerQuestion = new Map<
-    string,
-    { isCorrect: boolean; at: number; difficulty: number; category: QuestionCategory }
-  >();
-  for (const a of attempts) {
-    const at = a.createdAt.getTime();
-    const prev = latestPerQuestion.get(a.questionId);
-    if (!prev || at > prev.at) {
-      latestPerQuestion.set(a.questionId, {
-        isCorrect: a.isCorrect,
-        at,
-        difficulty: a.question.difficulty,
-        category: a.question.category,
-      });
-    }
-  }
-  const latestRows = [...latestPerQuestion.values()];
-
+  // One row per question already (see the module header), so the breakdowns group
+  // the attempt rows directly — no collapse step.
   const byDifficulty = groupAccuracy(
-    latestRows,
-    (r) => String(r.difficulty),
-    (r) => DIFFICULTY_LABELS[r.difficulty] ?? `Level ${r.difficulty}`,
+    attempts,
+    (a) => String(a.question.difficulty),
+    (a) =>
+      DIFFICULTY_LABELS[a.question.difficulty] ?? `Level ${a.question.difficulty}`,
   ).sort((a, b) => Number(a.key) - Number(b.key));
 
   const byCategory = groupAccuracy(
-    latestRows,
-    (r) => r.category,
-    (r) => QUESTION_CATEGORY_LABELS[r.category],
+    attempts,
+    (a) => a.question.category,
+    (a) => QUESTION_CATEGORY_LABELS[a.question.category],
   );
 
   // Weakest categories: those with attempts, lowest accuracy first; ties broken
@@ -306,8 +334,8 @@ export async function getUserSummary(
   };
 
   return {
-    totalAttempts,
-    distinctQuestions,
+    questionsAnswered,
+    totalQuestions,
     accuracy,
     attemptsTrend,
     accuracyTrend,
@@ -320,8 +348,8 @@ export async function getUserSummary(
 }
 
 /**
- * Group already-latest rows by a key, tally accuracy per group, and label each.
- * Shared by the per-difficulty and per-category breakdowns.
+ * Group attempt rows by a key, tally accuracy per group, and label each. Shared
+ * by the per-difficulty and per-category breakdowns.
  */
 function groupAccuracy<T extends { isCorrect: boolean }>(
   rows: T[],
@@ -338,7 +366,7 @@ function groupAccuracy<T extends { isCorrect: boolean }>(
   return [...groups.entries()].map(([key, g]) => ({
     key,
     label: g.label,
-    accuracy: accuracyOfLatestRows(g.rows),
+    accuracy: accuracyOf(g.rows),
   }));
 }
 
@@ -350,7 +378,7 @@ export interface AdminTotals {
   questions: number;
   atlasEntries: number;
   attempts: number;
-  /** Accuracy across the WHOLE platform (single-attempt model: one Attempt per user/question). */
+  /** Accuracy across the WHOLE platform (one Attempt per user/question). */
   accuracy: Accuracy;
 }
 
@@ -381,9 +409,8 @@ export interface AdminActivity {
 // ── Admin: totals + global accuracy ───────────────────────────────────────────
 
 /**
- * Platform totals plus the ONE global accuracy figure. With the single-attempt
- * model there is at most one Attempt per (user, question), so "latest per pair"
- * is just every row — accuracy is a plain correct/total count, both DB
+ * Platform totals plus the ONE global accuracy figure. One Attempt per
+ * (user, question) means accuracy is a plain correct/total count, both DB
  * aggregates. No rows are pulled into JS.
  */
 export async function getAdminTotals(): Promise<AdminTotals> {
@@ -409,21 +436,65 @@ export interface AdminTrends {
 }
 
 /**
- * Signups-over-time and attempts-over-time as dense daily series. Two findMany
- * pulls of just createdAt, bucketed in JS over the trailing `days` window.
+ * Signups-over-time and attempts-over-time as dense daily series.
+ *
+ * The counting is done by the DATABASE (`date_trunc` + `group_by`), not by pulling
+ * every row in the window into JS to be tallied. The previous shape read one row
+ * per signup and one per attempt on every admin page load, so the cost of drawing a
+ * 30-day chart grew with total platform activity; grouped, it is proportional to
+ * the number of DAYS instead — at most `days` rows back, whatever the volume.
+ *
+ * This is the one place raw SQL is warranted: Prisma's groupBy cannot express a
+ * date_trunc key. Both queries are parameterised (no interpolation), and the window
+ * boundary is computed here rather than in SQL so it matches the JS bucketing
+ * exactly.
+ *
+ * TIME ZONE — the subtle part. Prisma maps DateTime to `timestamp WITHOUT time
+ * zone` and writes UTC wall-clock values into it, so the column holds UTC instants
+ * with no zone attached. Every other date in this module (dayKey, the activity
+ * window, the "last active" label) is computed in the SERVER's local zone, so
+ * grouping by the raw column would file a late-evening local attempt under the next
+ * day and shift the chart against the rest of the dashboard.
+ *
+ * Converting therefore takes TWO steps: `AT TIME ZONE 'UTC'` first, to tag the naive
+ * value as the UTC instant it actually is, and only then `AT TIME ZONE <server zone>`
+ * to land in local time. Applying the second step alone would ADD the offset instead
+ * of subtracting it — Postgres reads a naive input as already being in the target
+ * zone — which is exactly the off-by-one-day bug this shape avoids. The zone is read
+ * from the runtime and passed as a bound parameter, so SQL and JS cannot drift.
  */
 export async function getAdminTrends(now: Date, days = 30): Promise<AdminTrends> {
   const since = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   since.setDate(since.getDate() - (days - 1));
 
-  const [userRows, attemptRows] = await Promise.all([
-    db.user.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }),
-    db.attempt.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }),
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  const [signupRows, attemptRows] = await Promise.all([
+    db.$queryRaw<DailyCountRow[]>`
+      SELECT to_char(
+               (("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}),
+               'YYYY-MM-DD'
+             ) AS day,
+             COUNT(*)::int AS count
+      FROM "User"
+      WHERE "createdAt" >= ${since}
+      GROUP BY day
+    `,
+    db.$queryRaw<DailyCountRow[]>`
+      SELECT to_char(
+               (("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}),
+               'YYYY-MM-DD'
+             ) AS day,
+             COUNT(*)::int AS count
+      FROM "Attempt"
+      WHERE "createdAt" >= ${since}
+      GROUP BY day
+    `,
   ]);
 
   return {
-    signups: bucketByDay(userRows.map((u) => u.createdAt), days, now),
-    attempts: bucketByDay(attemptRows.map((a) => a.createdAt), days, now),
+    signups: denseSeriesFromDailyCounts(signupRows, days, now),
+    attempts: denseSeriesFromDailyCounts(attemptRows, days, now),
   };
 }
 
@@ -523,9 +594,6 @@ export async function getHardestContent(
  * aggregates + one count — no rows pulled into JS.
  */
 export async function getCoverage(): Promise<CoverageStats> {
-  const { AtlasCategory } = await import("@prisma/client");
-  const { ATLAS_CATEGORY_LABELS } = await import("@/lib/validations/atlas");
-
   const [qByCat, withImage, totalQuestions, atlasByCat] = await Promise.all([
     db.question.groupBy({ by: ["category"], _count: { _all: true } }),
     db.question.count({ where: { imageUrl: { not: null } } }),

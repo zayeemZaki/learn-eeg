@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 
 import { adminResetPassword } from "@/app/actions/admin-users";
-import { type ActionResult } from "@/app/actions/admin-questions";
+import { type ActionResult } from "@/app/actions/action-result";
 import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/ui/password-field";
 

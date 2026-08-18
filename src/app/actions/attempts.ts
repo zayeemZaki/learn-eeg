@@ -1,5 +1,21 @@
 "use server";
 
+/**
+ * Recording a practice answer — the app's only user-facing write.
+ *
+ * Like every server action here it is an independently-invocable public endpoint,
+ * so it re-checks auth itself (requireUser) and derives the actor from the session
+ * rather than the payload: the client sends only a question + choice, never a user
+ * id, so a crafted request cannot log an attempt as somebody else.
+ *
+ * CORRECTNESS IS DECIDED SERVER-SIDE. The client is told which choice was right
+ * only in the response, after the write — the answer key never ships with the
+ * question (see the SECURITY BOUNDARY note in questions/[id]/page.tsx).
+ *
+ * ONE ATTEMPT PER QUESTION, enforced by @@unique([userId, questionId]) rather than
+ * by a read-then-write: the insert itself is the guard, and its P2002 violation is
+ * what "already answered" means.
+ */
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -37,12 +53,9 @@ export async function submitAnswer(raw: unknown): Promise<AnswerResult> {
 
   const correct = question.choices.find((c) => c.isCorrect);
 
-  const existing = await db.attempt.findUnique({
-    where: { userId_questionId: { userId, questionId } },
-    select: { id: true },
-  });
-  if (existing) return { ok: false, error: ALREADY_ANSWERED };
-
+  // One attempt per question is enforced by @@unique([userId, questionId]), so
+  // the insert IS the check — a pre-read would only add a round-trip and could
+  // still be raced. The P2002 branch below is the single, authoritative gate.
   try {
     await db.attempt.create({
       data: {
@@ -57,16 +70,18 @@ export async function submitAnswer(raw: unknown): Promise<AnswerResult> {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      // Lost the race against a concurrent submit for the same question.
       return { ok: false, error: ALREADY_ANSWERED };
     }
     throw error;
   }
 
-  // The questions list shows per-question Answered/Not-answered status derived
-  // from attempts. Recording one makes the cached list stale, so drop its
-  // client router cache — otherwise a Back navigation could show the old status.
+  // Both views derive from attempts and are now stale: the questions list shows
+  // per-question Answered/Not-answered status, and the dashboard's every figure
+  // comes from this user's attempts. Dropping both router caches keeps a Back
+  // navigation (or a click straight to the dashboard) from showing pre-answer
+  // state.
   revalidatePath("/questions");
+  revalidatePath("/dashboard");
 
   return {
     ok: true,

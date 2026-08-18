@@ -10,11 +10,8 @@ import {
   EegImageGalleryUpload,
   type GalleryImage,
 } from "@/components/admin/eeg-image-gallery-upload";
-import {
-  createQuestion,
-  updateQuestion,
-  type ActionResult,
-} from "@/app/actions/admin-questions";
+import { createQuestion, updateQuestion } from "@/app/actions/admin-questions";
+import { type ActionResult } from "@/app/actions/action-result";
 import {
   questionSchema,
   MIN_DIFFICULTY,

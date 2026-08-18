@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Position, Role } from "@prisma/client";
 
 import { updateUser } from "@/app/actions/admin-users";
-import { type ActionResult } from "@/app/actions/admin-questions";
+import { type ActionResult } from "@/app/actions/action-result";
 import { Button } from "@/components/ui/button";
 import { Field, inputClass } from "@/components/ui/field";
 import { POSITION_LABELS } from "@/lib/validations/auth";

@@ -5,8 +5,8 @@
  * endpoint, so the route/page guard is NOT sufficient: every action re-checks
  * role === "ADMIN" at the very top (requireAdmin) and re-validates its input with
  * the shared zod schema before touching the database. Never trust the client.
- * (Same contract as admin-atlas.ts / admin-questions.ts; the ActionResult type is
- * reused so the actions stay in lockstep.)
+ * (Same contract as admin-atlas.ts / admin-questions.ts — all three share the
+ * ActionResult shape from @/app/actions/action-result.)
  *
  * An Article is FLAT — scalar fields only, no relations and no inbound foreign
  * keys — so create/update are single writes and delete is a plain delete with no
@@ -28,7 +28,7 @@ import { requireAdmin } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { deleteBlobs } from "@/lib/blob-cleanup";
 import { articleSchema, type ArticleInput } from "@/lib/validations/article";
-import { type ActionResult } from "@/app/actions/admin-questions";
+import { type ActionResult } from "@/app/actions/action-result";
 
 /** Drop the caches that show articles: the admin list and the public page. */
 function revalidateArticleViews() {

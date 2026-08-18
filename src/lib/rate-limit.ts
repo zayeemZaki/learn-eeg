@@ -12,6 +12,8 @@
  *    or hangs, the request is ALLOWED. A cache outage must never lock real users
  *    out of logging in. Every Redis interaction is wrapped so a failure degrades
  *    to "no limiting", exactly as the app already degrades the literature cache.
+ *  - The IP the counter is keyed on comes only from headers our own edge sets;
+ *    see clientIp() for why the first `x-forwarded-for` hop must never be used.
  *
  * ENV BEHAVIOUR: with no REDIS_URL set, `redis` is null and `rateLimit` always
  * returns `{ allowed: true }` — the app boots and authenticates with no Redis.
@@ -68,21 +70,40 @@ export const OTP_REQUEST_RULE: RateLimitRule = {
 };
 
 /**
- * Best-effort client IP from request headers. On Vercel the first hop of
- * `x-forwarded-for` is the real client; `x-real-ip` is a fallback. When neither
- * is present (e.g. local dev) we use a constant bucket so the limiter still
- * functions logically without throwing.
+ * Best-effort client IP from request headers.
+ *
+ * `x-forwarded-for` is APPEND-ONLY and partly client-controlled: a caller can
+ * send `X-Forwarded-For: 1.2.3.4` and the platform appends the real address
+ * after it, so the FIRST entry is attacker-chosen. Reading it would let anyone
+ * defeat every limit below by rotating one header value. The trustworthy entries
+ * are the ones our own infrastructure appended, i.e. the END of the list.
+ *
+ * Preference order:
+ *  1. `x-vercel-forwarded-for` — set by Vercel's edge, not forwardable by a
+ *     client, so it is the real peer address on our deploy target.
+ *  2. `x-real-ip` — set by the terminating proxy (also Vercel-provided).
+ *  3. The LAST hop of `x-forwarded-for` — appended by the closest proxy.
+ *
+ * When none are present (e.g. `next dev` over localhost) we fall back to a
+ * constant bucket: the limiter still works logically, but it is NOT a security
+ * boundary in that configuration since every caller shares one counter.
  */
 async function clientIp(): Promise<string> {
   try {
     const h = await headers();
+
+    const vercel = h.get("x-vercel-forwarded-for")?.trim();
+    if (vercel) return vercel;
+
+    const real = h.get("x-real-ip")?.trim();
+    if (real) return real;
+
     const fwd = h.get("x-forwarded-for");
     if (fwd) {
-      const first = fwd.split(",")[0]?.trim();
-      if (first) return first;
+      const hops = fwd.split(",").map((hop) => hop.trim()).filter(Boolean);
+      const last = hops.at(-1);
+      if (last) return last;
     }
-    const real = h.get("x-real-ip");
-    if (real) return real.trim();
   } catch {
     // headers() unavailable (non-request context) — fall through to default.
   }

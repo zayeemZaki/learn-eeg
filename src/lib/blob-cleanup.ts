@@ -19,8 +19,9 @@
  *    URLs are addressable identities, and the same URL can in principle be
  *    referenced by two records (a duplicated/pasted URL). Deleting the object
  *    while another record still points at it would 404 that record's image, so we
- *    count references across QuestionImage.url, Article.imageUrl, and the legacy
- *    Question.imageUrl, and only delete at zero references.
+ *    count references across QuestionImage.url, AtlasEntry.imageUrl,
+ *    Article.imageUrl, and the legacy Question.imageUrl — every column that can
+ *    hold one — and only delete at zero references.
  */
 import { del } from "@vercel/blob";
 
@@ -41,18 +42,26 @@ function isVercelBlobUrl(url: string): boolean {
 }
 
 /**
- * Count how many rows still reference this exact URL across every table that can
- * hold a Blob URL: the per-question gallery (QuestionImage.url), an article's
- * figure (Article.imageUrl), and the legacy single-image column (Question.imageUrl).
- * Zero means the object is safe to delete.
+ * Count how many rows still reference this exact URL across EVERY table that can
+ * hold a Blob URL: the per-question gallery (QuestionImage.url), an atlas entry's
+ * image (AtlasEntry.imageUrl), an article's figure (Article.imageUrl), and the
+ * legacy single-image column (Question.imageUrl). Zero means the object is safe to
+ * delete.
+ *
+ * Every such column MUST be counted here. AtlasEntry was previously missing even
+ * though admin-atlas.ts calls deleteBlobs, so deleting one record that shared a
+ * URL with an atlas entry deleted the object out from under the entry and left it
+ * rendering a 404. If a new table gains an image column, add it to this list.
  */
 export async function countBlobRefs(url: string): Promise<number> {
-  const [galleryRefs, articleRefs, legacyQuestionRefs] = await Promise.all([
-    db.questionImage.count({ where: { url } }),
-    db.article.count({ where: { imageUrl: url } }),
-    db.question.count({ where: { imageUrl: url } }),
-  ]);
-  return galleryRefs + articleRefs + legacyQuestionRefs;
+  const [galleryRefs, atlasRefs, articleRefs, legacyQuestionRefs] =
+    await Promise.all([
+      db.questionImage.count({ where: { url } }),
+      db.atlasEntry.count({ where: { imageUrl: url } }),
+      db.article.count({ where: { imageUrl: url } }),
+      db.question.count({ where: { imageUrl: url } }),
+    ]);
+  return galleryRefs + atlasRefs + articleRefs + legacyQuestionRefs;
 }
 
 /**

@@ -18,23 +18,25 @@
  *  - No secrets/tokens are logged; Resend errors are swallowed (logged in
  *    email.ts only) and never surfaced.
  *
- * Note on sessions: sessions are JWT, so a password change does NOT invalidate
- * existing sessions. That's accepted for this milestone — we don't attempt
- * global revocation. The reset flow itself never auto-logs-in.
+ * Note on sessions: sessions are JWT, so there is no session row to delete. A
+ * successful reset therefore bumps the user's `sessionsValidFrom` watermark in
+ * the same transaction as the new hash, which revokes every token minted before
+ * it (enforced in src/lib/auth-guards.ts). The reset flow itself never
+ * auto-logs-in.
  */
 import { createHash, randomBytes } from "node:crypto";
 
-import { env } from "@/env";
+import { requirePublicAppUrl } from "@/env";
 import { db } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { hashPassword } from "@/lib/password";
 import { rateLimit, FORGOT_PASSWORD_RULE } from "@/lib/rate-limit";
+import { pruneExpiredPasswordResetTokens } from "@/lib/token-cleanup";
 import {
   forgotPasswordSchema,
   resetPasswordSchema,
 } from "@/lib/validations/auth";
-
-export type ActionResult = { ok: true } | { ok: false; error: string };
+import { type ActionResult } from "@/app/actions/action-result";
 
 // One hour. Long enough to act on the email, short enough to limit exposure.
 const TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -110,7 +112,11 @@ export async function requestPasswordReset(raw: unknown): Promise<ActionResult> 
       }),
     ]);
 
-    const resetUrl = `${env.APP_URL}/reset-password?token=${rawToken}`;
+    // Opportunistic housekeeping: drop long-expired tokens (any user's) now that
+    // we're already writing to this table. Never throws.
+    await pruneExpiredPasswordResetTokens();
+
+    const resetUrl = `${requirePublicAppUrl()}/reset-password?token=${rawToken}`;
 
     // Send the RAW token in the link. A send failure must not change the user-
     // facing outcome (still generic success) and must not leak the Resend error.
@@ -182,9 +188,12 @@ export async function resetPassword(raw: unknown): Promise<ActionResult> {
         // Lost the race: token was consumed between the pre-check and here.
         throw TOKEN_ALREADY_USED;
       }
+      // Bump the session watermark in the same transaction as the new hash: a
+      // reset is the canonical "I lost control of this account" flow, so every
+      // JWT minted before now is revoked (see src/lib/auth-guards.ts).
       await tx.user.update({
         where: { id: record.userId },
-        data: { passwordHash },
+        data: { passwordHash, sessionsValidFrom: new Date() },
       });
       // Defensively clear the user's other tokens in the same transaction.
       await tx.passwordResetToken.deleteMany({

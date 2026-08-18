@@ -29,7 +29,19 @@ export default function GlobalError({
     if (isUnauthorized) router.replace("/login");
   }, [isUnauthorized, router]);
 
-  if (isUnauthorized) return null;
+  // Not a blank screen while the redirect runs: a visible, announced line so the
+  // moment is legible to everyone, including screen-reader users.
+  if (isUnauthorized) {
+    return (
+      <div
+        role="status"
+        className="flex min-h-screen flex-col items-center justify-center gap-2 px-6 text-center"
+      >
+        <p className="text-lg font-semibold text-[var(--foreground)]">Signing you out…</p>
+        <p className="text-sm text-[var(--muted)]">Taking you to the sign-in page.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">

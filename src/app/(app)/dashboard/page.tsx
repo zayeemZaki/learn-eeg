@@ -46,7 +46,7 @@ export default async function DashboardPage() {
 
   const summary = await getUserSummary(userId, now, ACTIVITY_DAYS);
   const { accuracy } = summary;
-  const hasAttempts = summary.totalAttempts > 0;
+  const hasAttempts = summary.questionsAnswered > 0;
 
   // Difficulty / category breakdowns as percentage bars (only groups attempted).
   const difficultyBars = summary.byDifficulty.map((d) => ({
@@ -81,23 +81,17 @@ export default async function DashboardPage() {
         />
       ) : (
         <>
-          {/* Top-line stats. */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Top-line stats. One attempt per question, so "answered" and
+              "distinct" are the same number — reporting it once. */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <StatTile
               label="Questions answered"
-              value={summary.totalAttempts.toLocaleString()}
+              value={summary.questionsAnswered.toLocaleString()}
               delta={{
                 value: summary.attemptsTrend.delta,
                 label: `vs previous ${ACTIVITY_DAYS} days`,
               }}
-              sub={`across ${summary.distinctQuestions.toLocaleString()} ${
-                summary.distinctQuestions === 1 ? "question" : "questions"
-              }`}
-            />
-            <StatTile
-              label="Distinct practised"
-              value={summary.distinctQuestions.toLocaleString()}
-              sub="unique questions attempted"
+              sub={`of ${summary.totalQuestions.toLocaleString()} in the question bank`}
             />
             <StatTile
               label="Accuracy"
@@ -108,7 +102,7 @@ export default async function DashboardPage() {
                 unit: " pts",
                 label: `vs previous ${ACTIVITY_DAYS} days`,
               }}
-              sub={`${accuracy.correct} of ${accuracy.total} on latest try`}
+              sub={`${accuracy.correct} of ${accuracy.total} correct`}
             />
             <StatTile
               label="Last active"
@@ -122,7 +116,8 @@ export default async function DashboardPage() {
             <SectionPanel title="Current accuracy" className="lg:col-span-1">
               <RadialAccuracy percent={accuracy.percent} ariaLabel="Your accuracy" />
               <p className="mt-2 text-center text-sm text-[var(--muted)]">
-                Based on your latest answer to each of {accuracy.total} questions.
+                Based on the {accuracy.total}{" "}
+                {accuracy.total === 1 ? "question" : "questions"} you have answered.
               </p>
             </SectionPanel>
 

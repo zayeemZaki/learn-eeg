@@ -16,8 +16,7 @@ import { requireAdmin } from "@/lib/auth-guards";
 import { db } from "@/lib/db";
 import { deleteBlobs } from "@/lib/blob-cleanup";
 import { questionSchema, type QuestionInput } from "@/lib/validations/question";
-
-export type ActionResult = { ok: true } | { ok: false; error: string };
+import { type ActionResult } from "@/app/actions/action-result";
 
 /**
  * Drop the caches that show questions: the admin list, the public list, and

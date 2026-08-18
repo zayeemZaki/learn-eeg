@@ -20,10 +20,13 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { profileSchema, changePasswordSchema } from "@/lib/validations/auth";
 
 /**
- * Profile/password result. `reauth` signals the client to sign out to /login:
- * the login key (email) changed and the JWT caches the old one, so a fresh
- * sign-in is the clean way to reissue the token. A name-only change does NOT set
- * it — the new name surfaces on the next server-rendered navigation.
+ * Profile/password result. `reauth` signals the client to sign out to /login,
+ * because the current JWT can no longer represent this account:
+ *  - the login key (email) changed and the token caches the old one, or
+ *  - the password changed, which bumps `sessionsValidFrom` and therefore revokes
+ *    every token minted before the change — including this request's own.
+ * A name-only change does NOT set it — the new name surfaces on the next
+ * server-rendered navigation.
  */
 export type AccountResult =
   | { ok: true; reauth?: boolean }
@@ -59,10 +62,18 @@ export async function updateProfile(raw: unknown): Promise<AccountResult> {
   }
 
   try {
-    await db.user.update({
-      where: { id: userId },
-      data: { name, email },
-    });
+    // Pending verification codes are keyed on the email, not the user, so any
+    // that exist belong to the OLD address and can never apply to the new one.
+    // Same transaction, so the change stays atomic.
+    await db.$transaction([
+      db.user.update({
+        where: { id: userId },
+        data: { name, email },
+      }),
+      ...(emailChanged
+        ? [db.emailVerificationOtp.deleteMany({ where: { email: current.email } })]
+        : []),
+    ]);
   } catch (error) {
     // Backstop for the race between the pre-check and the write: the unique
     // index is the real guarantee. Same friendly message.
@@ -98,22 +109,34 @@ export async function changePassword(raw: unknown): Promise<AccountResult> {
   // Don't reveal anything beyond "current password is incorrect".
   if (!valid) return { ok: false, error: "Current password is incorrect" };
 
+  // Bumping sessionsValidFrom revokes every JWT minted before now — the whole
+  // point of changing a password is that other devices lose access. The CURRENT
+  // session's token also predates the bump, so the client must re-authenticate;
+  // we report that with the same `reauth` flag an email change uses.
   await db.user.update({
     where: { id: userId },
-    data: { passwordHash: await hashPassword(newPassword) },
+    data: {
+      passwordHash: await hashPassword(newPassword),
+      sessionsValidFrom: new Date(),
+    },
   });
 
-  return { ok: true };
+  return { ok: true, reauth: true };
 }
 
 /**
- * Re-issue the session after an email change. The credentials JWT caches the old
- * email (the login key), and `trigger:"update"` is not wired in the auth config,
- * so the clean fix is a fresh sign-in: sign out and redirect to /login. Called by
- * the settings form only after updateProfile reports `reauth`. Reuses the same
- * server-action signOut the layouts use — no client next-auth dependency.
+ * Re-issue the session after a credential change (email or password). The
+ * credentials JWT caches the old email and is dated against `sessionsValidFrom`,
+ * and `trigger:"update"` is not wired in the auth config, so the clean fix is a
+ * fresh sign-in: sign out and redirect to /login. Called by the settings forms
+ * whenever an account action reports `reauth`. Reuses the same server-action
+ * signOut the layouts use — no client next-auth dependency.
+ *
+ * Deliberately does NOT call requireUser(): a password change has already revoked
+ * this very session, so the guard would throw and strand the user on an error
+ * boundary instead of signing them out. Signing out an unauthenticated caller is
+ * a no-op, so there is nothing to protect here.
  */
-export async function reauthAfterEmailChange(): Promise<void> {
-  await requireUser();
+export async function reauthAfterCredentialChange(): Promise<void> {
   await signOut({ redirectTo: "/login" });
 }

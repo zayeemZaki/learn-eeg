@@ -11,6 +11,7 @@ import { ArticleMedia } from "@/components/ui/article-media";
 import { createArticle, updateArticle } from "@/app/actions/admin-articles";
 import { type ActionResult } from "@/app/actions/action-result";
 import { articleSchema, type ArticleInput } from "@/lib/validations/article";
+import { contentLinkUrls } from "@/lib/article-link";
 
 interface ArticleFormProps {
   /** Edit mode when present; the form pre-fills and calls updateArticle. */
@@ -42,6 +43,7 @@ export function ArticleForm({ article }: ArticleFormProps) {
   const [summary, setSummary] = useState(article?.summary ?? "");
   const [url, setUrl] = useState(article?.url ?? "");
   const [previewUrl, setPreviewUrl] = useState(article?.url ?? "");
+  const [previewSummary, setPreviewSummary] = useState(article?.summary ?? "");
   const [source, setSource] = useState(article?.source ?? "");
   const [publishedAt, setPublishedAt] = useState(article?.publishedAt ?? "");
   const [imageUrl, setImageUrl] = useState<string | null>(article?.imageUrl ?? null);
@@ -51,9 +53,14 @@ export function ArticleForm({ article }: ArticleFormProps) {
 
   // Keep the preview responsive without resolving a new URL on every keystroke.
   useEffect(() => {
-    const timeout = window.setTimeout(() => setPreviewUrl(url), 300);
+    const timeout = window.setTimeout(() => {
+      setPreviewUrl(url);
+      setPreviewSummary(summary);
+    }, 300);
     return () => window.clearTimeout(timeout);
-  }, [url]);
+  }, [url, summary]);
+
+  const previewLinks = contentLinkUrls(previewUrl, previewSummary);
 
   function onSubmit() {
     setError(null);
@@ -103,15 +110,23 @@ export function ArticleForm({ article }: ArticleFormProps) {
           </Field>
 
           <Field label="Summary" htmlFor="summary">
-            <textarea
-              id="summary"
-              required
-              rows={5}
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              className={inputClass("resize-y")}
-              placeholder="The teaching point or abstract students should take away."
-            />
+            <>
+              <textarea
+                id="summary"
+                required
+                rows={5}
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                className={inputClass("resize-y")}
+                placeholder="The teaching point or abstract students should take away."
+              />
+              {previewLinks.length > 0 ? (
+                <div className="pt-1">
+                  <p className="text-xs font-medium text-[var(--muted)]">Content preview</p>
+                  {previewLinks.map((link) => <ArticleMedia key={link} url={link} title={title} preview />)}
+                </div>
+              ) : null}
+            </>
           </Field>
 
           <div className="grid gap-5 sm:grid-cols-2">
@@ -148,7 +163,7 @@ export function ArticleForm({ article }: ArticleFormProps) {
                 className={inputClass()}
                 placeholder="https://pubmed.ncbi.nlm.nih.gov/…"
               />
-              <ArticleMedia url={previewUrl} title={title} preview />
+              {previewUrl && !previewLinks.includes(previewUrl) ? <ArticleMedia url={previewUrl} title={title} preview /> : null}
             </>
           </Field>
         </div>

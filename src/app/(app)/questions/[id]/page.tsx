@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { DifficultyMeter } from "@/components/ui/difficulty-meter";
+import { ArticleMedia } from "@/components/ui/article-media";
+import { splitContentLinks } from "@/lib/article-link";
 import { QuestionAnswer, type ClientQuestion } from "./question-answer";
 import { QuestionGallery } from "./question-gallery";
 
@@ -78,7 +80,7 @@ export default async function QuestionDetailPage({
     id: question.id,
     number: question.number,
     difficulty: question.difficulty,
-    stem: question.stem,
+    stem: splitContentLinks(question.stem).text,
     choices: question.choices.map(({ id, text }) => ({ id, text })),
     images,
     priorAnswer: existingAttempt
@@ -107,6 +109,9 @@ export default async function QuestionDetailPage({
           <DifficultyMeter difficulty={clientQuestion.difficulty} />
         </div>
         <p className="mt-1 text-base font-medium leading-relaxed">{clientQuestion.stem}</p>
+        {splitContentLinks(question.stem).urls.map((url) => (
+          <ArticleMedia key={url} url={url} title={`Question ${clientQuestion.number}`} action="button" linkLabel="Open reference" />
+        ))}
         {/* Gallery + click-to-zoom lightbox; renders nothing when there are no images. */}
         <QuestionGallery images={clientQuestion.images} />
       </Card>

@@ -30,7 +30,7 @@ const optionalText = (max: number) =>
 
 export const articleSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
-  summary: z.string().trim().min(1, "Summary is required").max(4000),
+  summary: z.string().trim().min(1, "Summary is required").max(16000),
   // Optional external link-out (PubMed / journal).
   url: optionalUrl,
   // Optional journal / publisher and free-form publish date.

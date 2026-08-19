@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { resolveArticleLink } from "./article-link";
+import { resolveArticleLink, splitContentLinks } from "./article-link";
 
 const cases = [
   ["youtu.be short link", "https://youtu.be/dQw4w9WgXcQ", "youtube"],
@@ -30,3 +30,8 @@ assert.equal(youtube?.kind, "youtube");
 if (youtube?.kind === "youtube") {
   assert.equal(youtube.embedUrl, "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ");
 }
+
+assert.deepEqual(
+  splitContentLinks("Watch https://youtu.be/dQw4w9WgXcQ. Then discuss."),
+  { text: "Watch Then discuss.", urls: ["https://youtu.be/dQw4w9WgXcQ"] },
+);

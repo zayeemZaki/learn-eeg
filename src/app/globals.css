@@ -309,6 +309,95 @@ input:-webkit-autofill:active {
   }
 }
 
+/*
+ * Literature reader motion. `content-rise` is the shared entrance for cards and
+ * article sections: a short fade + lift. List items stagger via an inline
+ * `--stagger` delay so a page of cards resolves in sequence rather than all at
+ * once. Both live inside a no-preference query, so reduced-motion users get the
+ * final state immediately with no animation to suppress.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .content-rise {
+    animation: content-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--stagger, 0ms);
+  }
+
+  @keyframes content-rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/*
+ * The literature card's figure: a slow scale on hover, clipped by the card's
+ * overflow, so the whole card reads as one tap target that responds. Paired with
+ * the Card `interactive` lift rather than replacing it.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .literature-card:hover .literature-figure {
+    transform: scale(1.04);
+  }
+
+  .literature-figure {
+    transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+/*
+ * The generated stand-in figure for an article with no uploaded image: an
+ * accent-to-indigo wash that the drawn EEG trace sits on. Same gradient family
+ * as .article-hero, a step fainter, so a card with a real photo and a card with
+ * a generated figure read as the same component.
+ */
+.article-figure-fallback {
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 14%, var(--surface)),
+    color-mix(in srgb, var(--accent-2) 9%, var(--surface)) 60%,
+    var(--surface)
+  );
+}
+
+/*
+ * Article hero: the same faint EEG-paper grid used on the marketing hero, washed
+ * with an accent gradient so the reader page opens on something with presence
+ * instead of a bare white card. Tokens only; no new colour.
+ */
+.article-hero {
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 12%, var(--surface)),
+    color-mix(in srgb, var(--accent-2) 7%, var(--surface)) 55%,
+    var(--surface)
+  );
+}
+
+/*
+ * Literature body copy. The summary is plain authored text, so the reading
+ * measure and rhythm are set here once rather than per-paragraph: a comfortable
+ * measure, generous leading, and a lead paragraph that is a step larger.
+ */
+.article-prose {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--foreground);
+}
+
+.article-prose > p + p {
+  margin-top: 1.15em;
+}
+
+.article-prose > p:first-child {
+  font-size: 1.0625rem;
+  color: var(--muted);
+}
+
 /* Atlas print view: a one-column reference handout with each figure and note intact. */
 @media print {
   .app-surface {
@@ -360,5 +449,9 @@ input:-webkit-autofill:active {
     width: 100%;
     max-height: none;
     animation: none;
+  }
+
+  .atlas-print-entry .atlas-expand-figure {
+    display: none;
   }
 }

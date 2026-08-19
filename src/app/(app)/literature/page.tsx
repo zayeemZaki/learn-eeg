@@ -1,10 +1,12 @@
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { EegImage } from "@/components/ui/eeg-image";
-import { ArticleMedia } from "@/components/ui/article-media";
+import { ArticleReaderCard } from "@/components/ui/article-reader-card";
 import { Pager } from "@/components/ui/pager";
-import { CONTENT_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
+import { pageInfo, resolvePage } from "@/lib/pagination";
+import { splitContentLinks } from "@/lib/article-link";
+
+const ARTICLES_PER_PAGE = 9;
 
 export default async function LiteraturePage({
   searchParams,
@@ -12,7 +14,7 @@ export default async function LiteraturePage({
   // In Next 15+/16, searchParams is async and must be awaited.
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const page = resolvePage((await searchParams).page, CONTENT_PAGE_SIZE);
+  const page = resolvePage((await searchParams).page, ARTICLES_PER_PAGE);
 
   // Admin-authored articles, newest first. Replaces the former live PubMed feed —
   // the data now lives in the DB (admins create/edit/delete; students read).
@@ -25,7 +27,6 @@ export default async function LiteraturePage({
         id: true,
         title: true,
         summary: true,
-        url: true,
         source: true,
         publishedAt: true,
         imageUrl: true,
@@ -46,41 +47,22 @@ export default async function LiteraturePage({
       {articles.length === 0 ? (
         <EmptyState message="No articles yet — check back soon." />
       ) : (
-        // A compact feed: one bordered surface with hairline-divided rows. The
-        // title is the primary line, "source · published" the muted secondary,
-        // then the summary; an optional figure thumbnail and an optional external
-        // link-out follow.
-        <ul className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
-          {articles.map((article) => {
-            const meta = [article.source, article.publishedAt].filter(Boolean).join(" · ");
-            return (
-              <li
-                key={article.id}
-                className="flex gap-4 border-b border-[var(--border)] p-4 last:border-0"
-              >
-                {article.imageUrl ? (
-                  // Small framed thumbnail (shared EegImage), alt-texted by title.
-                  <div className="w-28 shrink-0">
-                    <EegImage src={article.imageUrl} alt={article.title} />
-                  </div>
-                ) : null}
-
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium leading-snug text-[var(--foreground)]">
-                    {article.title}
-                  </p>
-                  {meta ? (
-                    <p className="mt-0.5 text-sm text-[var(--muted)]">{meta}</p>
-                  ) : null}
-                  <p className="mt-2 text-sm leading-relaxed text-[var(--foreground)]">
-                    {article.summary}
-                  </p>
-
-                  <ArticleMedia url={article.url} title={article.title} />
-                </div>
-              </li>
-            );
-          })}
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {articles.map((article, index) => (
+            <li key={article.id} className="flex">
+              <ArticleReaderCard
+                id={article.id}
+                title={article.title}
+                // Raw URLs belong to the reader page's media section, not to a
+                // three-line card excerpt.
+                summary={splitContentLinks(article.summary).text}
+                source={article.source}
+                publishedAt={article.publishedAt}
+                imageUrl={article.imageUrl}
+                index={index}
+              />
+            </li>
+          ))}
         </ul>
       )}
 

@@ -24,6 +24,7 @@ const YOUTUBE_HOSTS = new Set(["youtube.com", "youtu.be"]);
 const VIMEO_HOSTS = new Set(["vimeo.com", "player.vimeo.com"]);
 const PUBMED_HOSTS = new Set(["pubmed.ncbi.nlm.nih.gov", "ncbi.nlm.nih.gov"]);
 const DOI_HOSTS = new Set(["doi.org"]);
+const URL_IN_TEXT = /https?:\/\/[^\s<>"']+/gi;
 
 function stripWww(hostname: string) {
   return hostname.toLowerCase().replace(/^www\./, "");
@@ -129,4 +130,28 @@ export function resolveArticleLink(input: string): ArticleLink | null {
   }
 
   return link();
+}
+
+/**
+ * Pull web URLs out of plain authored content. The cleaned text lets content
+ * pages show a proper media card rather than leaving a long raw URL in a
+ * paragraph. This extraction is deliberately presentation-only: the stored
+ * content remains untouched.
+ */
+export function splitContentLinks(text: string): { text: string; urls: string[] } {
+  const urls = Array.from(text.matchAll(URL_IN_TEXT), (match) =>
+    // Sentence punctuation belongs to the sentence, not the URL.
+    match[0].replace(/[),.!?;:]+$/, ""),
+  ).filter(Boolean);
+
+  return {
+    text: text.replace(URL_IN_TEXT, "").replace(/\s{2,}/g, " ").trim(),
+    urls: [...new Set(urls)],
+  };
+}
+
+/** Collect unique links from dedicated fields and plain authored content. */
+export function contentLinkUrls(...values: (string | null | undefined)[]): string[] {
+  const urls = values.flatMap((value) => (value ? splitContentLinks(value).urls : []));
+  return [...new Set(urls)];
 }

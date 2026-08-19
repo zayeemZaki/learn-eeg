@@ -284,3 +284,81 @@ input:-webkit-autofill:active {
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
   mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
 }
+
+/* A newly submitted answer settles into its outcome; review pages remain still. */
+@media (prefers-reduced-motion: no-preference) {
+  .question-choice {
+    transition-property: border-color, background-color, color, opacity, transform;
+    transition-duration: 200ms;
+    transition-timing-function: ease-out;
+  }
+
+  .question-result-reveal {
+    animation: question-result-reveal 200ms ease-out both;
+  }
+
+  @keyframes question-result-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Atlas print view: a one-column reference handout with each figure and note intact. */
+@media print {
+  .app-surface {
+    background: none;
+  }
+
+  .app-surface > aside,
+  .app-surface > .fixed {
+    display: none;
+  }
+
+  .app-surface main {
+    padding: 0;
+  }
+
+  .app-surface main > div {
+    max-width: none;
+  }
+
+  .atlas-print-controls {
+    display: none;
+  }
+
+  .atlas-print-header {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .atlas-print-grid {
+    display: block;
+  }
+
+  .atlas-print-entry {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 1.5rem;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .atlas-print-entry .eeg-image-frame {
+    width: 100%;
+    animation: none;
+    background-image: none;
+  }
+
+  .atlas-print-entry .eeg-image-img {
+    width: 100%;
+    max-height: none;
+    animation: none;
+  }
+}

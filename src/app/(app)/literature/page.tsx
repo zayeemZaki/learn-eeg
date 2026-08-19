@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EegImage } from "@/components/ui/eeg-image";
+import { ArticleMedia } from "@/components/ui/article-media";
 import { Pager } from "@/components/ui/pager";
 import { CONTENT_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
 
@@ -75,19 +76,7 @@ export default async function LiteraturePage({
                     {article.summary}
                   </p>
 
-                  {article.url ? (
-                    <a
-                      href={article.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-[var(--accent)] outline-none transition hover:underline focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
-                    >
-                      Read the full article
-                      {/* External-link affordance; decorative (the new tab is
-                          conveyed to SR users by the visible label + target). */}
-                      <span aria-hidden="true">↗</span>
-                    </a>
-                  ) : null}
+                  <ArticleMedia url={article.url} title={article.title} />
                 </div>
               </li>
             );

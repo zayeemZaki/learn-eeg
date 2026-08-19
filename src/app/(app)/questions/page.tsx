@@ -20,6 +20,7 @@ import { CONTENT_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
 const MAX_LISTED_QUESTIONS = 1000;
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { QuestionCategoryBadge } from "@/components/ui/question-category-badge";
 import {
   CheckIcon,
   CircleDashIcon,
@@ -65,6 +66,7 @@ export default async function QuestionsPage({
         id: true,
         number: true, // stable ordinal, shown as "#N"
         stem: true,
+        category: true,
         imageUrl: true,
         _count: { select: { images: true } },
       },
@@ -84,6 +86,7 @@ export default async function QuestionsPage({
     id: q.id,
     number: q.number,
     stem: q.stem,
+    category: q.category,
     // Relation count, but never below 1 for a legacy-only question (empty
     // relation + populated legacy imageUrl) so the indicator matches the loader.
     imageCount: q._count.images > 0 ? q._count.images : q.imageUrl ? 1 : 0,
@@ -126,12 +129,29 @@ export default async function QuestionsPage({
     { label: "Answered", href: "/questions?status=answered", active: status === "answered", count: counts.answered },
     { label: "Unanswered", href: "/questions?status=unanswered", active: status === "unanswered", count: counts.unanswered },
   ];
+  const answeredPercent = counts.all > 0 ? (counts.answered / counts.all) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="EEG Question Bank" />
 
       <SegmentedTabs tabs={tabs} />
+
+      <section aria-label="Question bank progress" className="flex flex-col gap-2">
+        <div
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={counts.all}
+          aria-valuenow={counts.answered}
+          aria-valuetext={`${counts.answered} of ${counts.all} answered`}
+          className="h-2 overflow-hidden rounded-full bg-[var(--border)]"
+        >
+          <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${answeredPercent}%` }} />
+        </div>
+        <p className="text-sm text-[var(--muted)] tabular-nums">
+          {counts.answered} of {counts.all} answered
+        </p>
+      </section>
 
       {decorated.length === 0 ? (
         // No questions exist at all.
@@ -165,6 +185,7 @@ export default async function QuestionsPage({
                       {q.imageCount} EEG {q.imageCount === 1 ? "image" : "images"}
                     </Badge>
                   ) : null}
+                  <QuestionCategoryBadge category={q.category} />
                 </div>
 
                 <div className="flex shrink-0 flex-col items-end gap-1">

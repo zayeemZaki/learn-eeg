@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Field, inputClass } from "@/components/ui/field";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { EegImageUpload } from "@/components/admin/eeg-image-upload";
+import { ArticleMedia } from "@/components/ui/article-media";
 import { createArticle, updateArticle } from "@/app/actions/admin-articles";
 import { type ActionResult } from "@/app/actions/action-result";
 import { articleSchema, type ArticleInput } from "@/lib/validations/article";
@@ -40,12 +41,19 @@ export function ArticleForm({ article }: ArticleFormProps) {
   const [title, setTitle] = useState(article?.title ?? "");
   const [summary, setSummary] = useState(article?.summary ?? "");
   const [url, setUrl] = useState(article?.url ?? "");
+  const [previewUrl, setPreviewUrl] = useState(article?.url ?? "");
   const [source, setSource] = useState(article?.source ?? "");
   const [publishedAt, setPublishedAt] = useState(article?.publishedAt ?? "");
   const [imageUrl, setImageUrl] = useState<string | null>(article?.imageUrl ?? null);
 
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Keep the preview responsive without resolving a new URL on every keystroke.
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setPreviewUrl(url), 300);
+    return () => window.clearTimeout(timeout);
+  }, [url]);
 
   function onSubmit() {
     setError(null);
@@ -131,14 +139,17 @@ export function ArticleForm({ article }: ArticleFormProps) {
           </div>
 
           <Field label="External link (optional)" htmlFor="url">
-            <input
-              id="url"
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className={inputClass()}
-              placeholder="https://pubmed.ncbi.nlm.nih.gov/…"
-            />
+            <>
+              <input
+                id="url"
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className={inputClass()}
+                placeholder="https://pubmed.ncbi.nlm.nih.gov/…"
+              />
+              <ArticleMedia url={previewUrl} title={title} preview />
+            </>
           </Field>
         </div>
       </SectionPanel>

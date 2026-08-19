@@ -3,7 +3,7 @@ import { AtlasCategory } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";
-import { EegImage } from "@/components/ui/eeg-image";
+import { AtlasImageLightbox } from "@/components/ui/atlas-image-lightbox";
 import { SegmentedTabs } from "@/components/ui/segmented-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -53,19 +53,26 @@ export default async function AtlasCategoryPage({
   }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="EEG Atlas" />
+    <div className="atlas-print-page flex flex-col gap-6">
+      <div className="atlas-print-header">
+        <PageHeader title="EEG Atlas" />
+      </div>
 
-      <SegmentedTabs tabs={tabs} />
+      <div className="atlas-print-controls">
+        <SegmentedTabs tabs={tabs} />
+      </div>
 
       {entries.length === 0 ? (
         <EmptyState message={`No entries in ${current.title.toLowerCase()} yet.`} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="atlas-print-grid grid gap-4 sm:grid-cols-2">
           {entries.map((entry) => (
-            <Card key={entry.id} className="flex h-full flex-col">
-              {/* Same framed image treatment as the question bank (EegImage). */}
-              <EegImage src={entry.imageUrl} alt={entry.title} />
+            <Card key={entry.id} className="atlas-print-entry flex h-full flex-col">
+              <AtlasImageLightbox
+                src={entry.imageUrl}
+                title={entry.title}
+                description={entry.description}
+              />
               <h2 className="mt-3 font-[family-name:var(--font-display)] font-bold tracking-tight">
                 {entry.title}
               </h2>
@@ -75,11 +82,13 @@ export default async function AtlasCategoryPage({
         </div>
       )}
 
-      <Pager
-        info={info}
-        hrefForPage={(p) => `/atlas/${current.slug}?page=${p}`}
-        itemLabel="entries"
-      />
+      <div className="atlas-print-controls">
+        <Pager
+          info={info}
+          hrefForPage={(p) => `/atlas/${current.slug}?page=${p}`}
+          itemLabel="entries"
+        />
+      </div>
     </div>
   );
 }

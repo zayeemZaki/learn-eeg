@@ -14,6 +14,8 @@ import { BarBreakdown } from "@/components/charts/bar-breakdown";
 import { RadialAccuracy } from "@/components/charts/radial-accuracy";
 import { POSITION_LABELS } from "@/lib/validations/auth";
 import { QuestionsIcon } from "@/components/shell/nav-icons";
+import { QUESTION_CATEGORY_TONES, QUESTION_CATEGORY_TONE_COLORS } from "@/lib/validations/question";
+import { QuestionCategory } from "@prisma/client";
 
 export const metadata = { title: "Dashboard" };
 
@@ -58,6 +60,7 @@ export default async function DashboardPage() {
     label: c.label,
     value: c.accuracy.percent ?? 0,
     hint: `${c.accuracy.correct} of ${c.accuracy.total} correct`,
+    color: QUESTION_CATEGORY_TONE_COLORS[QUESTION_CATEGORY_TONES[c.key as QuestionCategory]],
   }));
 
   // Focus areas: weakest attempted categories under the threshold.
@@ -83,7 +86,7 @@ export default async function DashboardPage() {
         <>
           {/* Top-line stats. One attempt per question, so "answered" and
               "distinct" are the same number — reporting it once. */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatTile
               label="Questions answered"
               value={summary.questionsAnswered.toLocaleString()}
@@ -109,6 +112,7 @@ export default async function DashboardPage() {
               value={summary.lastActiveAt ? lastActiveLabel(summary.lastActiveAt, now) : "—"}
               sub={`${ACTIVITY_DAYS}-day activity below`}
             />
+            <StatTile label="Practice streak" value={summary.practiceStreak.toLocaleString()} />
           </div>
 
           {/* Accuracy gauge + activity trend, side by side on wide screens. */}

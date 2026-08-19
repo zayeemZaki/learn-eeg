@@ -31,6 +31,7 @@ export interface ClientQuestion {
   id: string;
   /** Stable, system-assigned ordinal shown as "Question #N". Just an ordinal. */
   number: number;
+  difficulty: number;
   stem: string;
   choices: ClientChoice[];
   images: ClientImage[];
@@ -84,6 +85,8 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
   );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Only a newly submitted answer may animate; a prior answer is review-only.
+  const [hasFreshResult, setHasFreshResult] = useState(false);
 
   // Refs to the radio buttons (for roving-tabindex keyboard navigation) and to
   // the result region (focus moves there after a submit reveals the outcome).
@@ -112,6 +115,7 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
       const res = await submitAnswer({ questionId: question.id, choiceId });
       if (res.ok) {
         setResult(res);
+        setHasFreshResult(true);
         // Defer to after the result region paints, then focus it.
         requestAnimationFrame(() => resultRef.current?.focus());
       } else {
@@ -140,9 +144,15 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
         next = (index - 1 + count) % count;
         break;
       case " ":
-      case "Enter":
         e.preventDefault();
         if (!answered) select(question.choices[index].id);
+        return;
+      case "Enter":
+        e.preventDefault();
+        // Preserve the original Enter-to-select behaviour until a choice exists;
+        // thereafter Enter commits the selected answer as the shortcut promises.
+        if (!answered && selected) submit();
+        else if (!answered) select(question.choices[index].id);
         return;
       default:
         return;
@@ -150,6 +160,19 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
     e.preventDefault();
     select(question.choices[next].id);
     optionRefs.current[next]?.focus();
+  }
+
+  function onShortcutKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const target = e.target as HTMLElement;
+    if (target.matches("input, textarea, select, [contenteditable='true']")) return;
+    if (answered || isPending) return;
+
+    const choiceIndex = Number(e.key) - 1;
+    if (Number.isInteger(choiceIndex) && choiceIndex >= 0 && choiceIndex < question.choices.length) {
+      e.preventDefault();
+      select(question.choices[choiceIndex]!.id);
+      optionRefs.current[choiceIndex]?.focus();
+    }
   }
 
   // Visual state per choice. Unanswered: neutral, accent border on hover, and an
@@ -195,7 +218,7 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5" onKeyDown={onShortcutKeyDown}>
       <div
         role="radiogroup"
         aria-label="Answer choices"
@@ -233,7 +256,7 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
               disabled={isPending && !answered}
               onClick={() => select(choice.id)}
               onKeyDown={(e) => onKeyDown(e, index)}
-              className={`flex items-center justify-between rounded-xl border px-4 py-4 text-left text-sm transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] aria-disabled:cursor-default disabled:cursor-default ${choiceStyle(choice.id)}`}
+              className={`question-choice flex items-center justify-between rounded-xl border px-4 py-4 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] aria-disabled:cursor-default disabled:cursor-default ${choiceStyle(choice.id)}`}
             >
               <span className="flex min-w-0 items-center gap-3">
                 {/* Letter badge — positional label, decorative for SR (the letter
@@ -251,6 +274,12 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
           );
         })}
       </div>
+
+      {!answered ? (
+        <p className="text-xs text-[var(--muted)]">
+          Press 1-{Math.min(question.choices.length, 9)} to select, Enter to submit
+        </p>
+      ) : null}
 
       {/* Two-step commit: Submit is enabled once a choice is selected and the
           result isn't yet shown. */}
@@ -276,7 +305,7 @@ export function QuestionAnswer({ question }: { question: ClientQuestion }) {
           ref={resultRef}
           tabIndex={-1}
           aria-live="polite"
-          className="outline-none"
+          className={`outline-none ${hasFreshResult ? "question-result-reveal" : ""}`}
         >
           <Card
             className={

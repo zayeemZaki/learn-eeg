@@ -9,6 +9,9 @@ import { DataTable, type Column } from "@/components/ui/data-table";
 import { Pager } from "@/components/ui/pager";
 import { Badge } from "@/components/ui/badge";
 import { ImageIcon } from "@/components/ui/icons";
+import { DifficultyMeter } from "@/components/ui/difficulty-meter";
+import { QuestionCategoryBadge } from "@/components/ui/question-category-badge";
+import { type QuestionCategory } from "@prisma/client";
 import { ADMIN_PAGE_SIZE, pageInfo, resolvePage } from "@/lib/pagination";
 
 export const metadata = { title: "Questions" };
@@ -20,6 +23,7 @@ interface QuestionRow {
   imageCount: number;
   choices: number;
   difficulty: number;
+  category: QuestionCategory;
   attempts: number;
 }
 
@@ -54,6 +58,7 @@ export default async function AdminQuestionsPage({
         number: true, // stable ordinal, shown as "#N" (system-assigned, read-only)
         stem: true,
         difficulty: true,
+        category: true,
         // Legacy single-image column — selected so a legacy-only question still
         // counts as 1 image during the deprecation window (see imageCount below).
         imageUrl: true,
@@ -86,6 +91,7 @@ export default async function AdminQuestionsPage({
     imageCount: q._count.images > 0 ? q._count.images : q.imageUrl ? 1 : 0,
     choices: q._count.choices,
     difficulty: q.difficulty,
+    category: q.category,
     attempts: attemptsByQuestion.get(q.id) ?? 0,
   }));
 
@@ -122,8 +128,9 @@ export default async function AdminQuestionsPage({
     },
     { header: "Options", align: "right", cell: (q) => <span className="tabular-nums">{q.choices}</span> },
     { header: "Images", align: "center", cell: imageCell },
+    { header: "Category", cell: (q) => <QuestionCategoryBadge category={q.category} /> },
     { header: "Attempts", align: "right", cell: (q) => <span className="tabular-nums">{q.attempts}</span> },
-    { header: "Difficulty", align: "right", cell: (q) => <span className="tabular-nums">{q.difficulty}</span> },
+    { header: "Difficulty", align: "right", cell: (q) => <DifficultyMeter difficulty={q.difficulty} /> },
   ];
 
   return (
@@ -165,7 +172,8 @@ export default async function AdminQuestionsPage({
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
                   <span className="tabular-nums">{q.choices} options</span>
                   <span className="tabular-nums">{q.attempts} attempts</span>
-                  <span className="tabular-nums">Difficulty {q.difficulty}</span>
+                  <DifficultyMeter difficulty={q.difficulty} />
+                  <QuestionCategoryBadge category={q.category} />
                   {q.imageCount > 0 ? (
                     <Badge variant="subtle" tone="neutral" icon={<ImageIcon />}>
                       {q.imageCount} {q.imageCount === 1 ? "image" : "images"}

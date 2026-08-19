@@ -22,6 +22,8 @@ import { accuracyFill } from "@/components/charts/accuracy-tone";
 export interface BarBreakdownItem {
   label: string;
   value: number;
+  /** Optional token-derived category colour; label remains visible on the axis. */
+  color?: string;
   /** Optional context shown in the tooltip (e.g. "12 of 20 correct"). */
   hint?: string;
 }
@@ -117,7 +119,7 @@ export function BarBreakdown({
             {data.map((item) => (
               <Cell
                 key={item.label}
-                fill={semantic ? accuracyFill(item.value) : "var(--accent)"}
+                fill={item.color ?? (semantic ? accuracyFill(item.value) : "var(--accent)")}
               />
             ))}
           </Bar>

@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { DifficultyMeter } from "@/components/ui/difficulty-meter";
 import { QuestionAnswer, type ClientQuestion } from "./question-answer";
 import { QuestionGallery } from "./question-gallery";
 
@@ -26,6 +27,7 @@ export default async function QuestionDetailPage({
     select: {
       id: true,
       number: true, // stable ordinal — surfaced as "Question #N" (just an ordinal)
+      difficulty: true,
       stem: true,
       explanation: true,
       choices: { select: { id: true, text: true, isCorrect: true } },
@@ -75,6 +77,7 @@ export default async function QuestionDetailPage({
   const clientQuestion: ClientQuestion = {
     id: question.id,
     number: question.number,
+    difficulty: question.difficulty,
     stem: question.stem,
     choices: question.choices.map(({ id, text }) => ({ id, text })),
     images,
@@ -97,9 +100,12 @@ export default async function QuestionDetailPage({
 
       <Card>
         {/* Stable, system-assigned ordinal — read-only, just a "Question #N" label. */}
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-          Question #{clientQuestion.number}
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+            Question #{clientQuestion.number}
+          </p>
+          <DifficultyMeter difficulty={clientQuestion.difficulty} />
+        </div>
         <p className="mt-1 text-base font-medium leading-relaxed">{clientQuestion.stem}</p>
         {/* Gallery + click-to-zoom lightbox; renders nothing when there are no images. */}
         <QuestionGallery images={clientQuestion.images} />

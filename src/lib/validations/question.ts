@@ -26,6 +26,40 @@ export const QUESTION_CATEGORY_LABELS: Record<QuestionCategory, string> = {
   [QuestionCategory.OTHER]: "Other / uncategorized",
 };
 
+/**
+ * Shared category tone names. Labels always travel with these tones in the UI;
+ * this map is only a presentation cue, never a standalone category identifier.
+ */
+export type QuestionCategoryTone =
+  | "normal"
+  | "epileptiform"
+  | "seizure"
+  | "artifact"
+  | "encephalopathy"
+  | "focal"
+  | "other";
+
+export const QUESTION_CATEGORY_TONES: Record<QuestionCategory, QuestionCategoryTone> = {
+  [QuestionCategory.NORMAL_VARIANT]: "normal",
+  [QuestionCategory.EPILEPTIFORM]: "epileptiform",
+  [QuestionCategory.SEIZURE]: "seizure",
+  [QuestionCategory.ARTIFACT]: "artifact",
+  [QuestionCategory.ENCEPHALOPATHY]: "encephalopathy",
+  [QuestionCategory.FOCAL]: "focal",
+  [QuestionCategory.OTHER]: "other",
+};
+
+/** Token-derived fills shared by category bars; no raw colour values live here. */
+export const QUESTION_CATEGORY_TONE_COLORS: Record<QuestionCategoryTone, string> = {
+  normal: "color-mix(in srgb, var(--success) 85%, var(--accent))",
+  epileptiform: "color-mix(in srgb, var(--danger) 85%, var(--accent))",
+  seizure: "color-mix(in srgb, var(--danger) 55%, var(--accent-2))",
+  artifact: "color-mix(in srgb, var(--warning) 85%, var(--accent))",
+  encephalopathy: "color-mix(in srgb, var(--warning) 55%, var(--accent-2))",
+  focal: "color-mix(in srgb, var(--accent-2) 80%, var(--accent))",
+  other: "color-mix(in srgb, var(--muted) 75%, var(--accent))",
+};
+
 /** Content types the EEG image uploader and token route accept. */
 export const ALLOWED_IMAGE_TYPES = [
   "image/png",

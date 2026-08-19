@@ -1,20 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import { EegImage } from "@/components/ui/eeg-image";
-import { Modal } from "@/components/ui/modal";
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CrossIcon,
-} from "@/components/ui/icons";
+import { ImageLightbox, type LightboxImage } from "@/components/ui/image-lightbox";
 
 /** One displayable image — exactly the client-safe shape (url + alt only). */
-export interface GalleryImageView {
-  url: string;
-  alt: string | null;
-}
+export type GalleryImageView = LightboxImage;
 
 /**
  * The question's EEG image gallery + click-to-zoom lightbox. Each thumbnail
@@ -36,39 +28,10 @@ export function QuestionGallery({ images }: { images: GalleryImageView[] }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const count = images.length;
-  const open = activeIndex !== null;
-
-  const close = useCallback(() => setActiveIndex(null), []);
-  const next = useCallback(
-    () => setActiveIndex((i) => (i === null ? i : (i + 1) % count)),
-    [count],
-  );
-  const prev = useCallback(
-    () => setActiveIndex((i) => (i === null ? i : (i - 1 + count) % count)),
-    [count],
-  );
-
-  // ←/→ navigation inside the lightbox. Escape is handled by the Modal itself.
-  const onKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (count < 2) return;
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        next();
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        prev();
-      }
-    },
-    [count, next, prev],
-  );
-
   if (count === 0) return null;
 
   const altFor = (img: GalleryImageView, i: number) =>
     img.alt && img.alt.length > 0 ? img.alt : `EEG image ${i + 1} of ${count}`;
-
-  const active = activeIndex !== null ? images[activeIndex]! : null;
 
   return (
     <>
@@ -95,89 +58,13 @@ export function QuestionGallery({ images }: { images: GalleryImageView[] }) {
         ))}
       </ul>
 
-      {open && active ? (
-        <Modal
-          open={open}
-          onClose={close}
-          onKeyDown={onKeyDown}
-          label={`Image viewer — ${altFor(active, activeIndex!)}`}
-          className="flex w-full max-w-4xl flex-col gap-3"
-        >
-          {/* Top bar: counter (text, never colour-only) + close. */}
-          <div className="flex items-center justify-between gap-3 text-white">
-            <span className="rounded-full bg-[color-mix(in_srgb,black_50%,transparent)] px-3 py-1 text-sm font-medium tabular-nums backdrop-blur-sm">
-              {activeIndex! + 1} / {count}
-            </span>
-            <button
-              type="button"
-              onClick={close}
-              aria-label="Close image viewer"
-              className={`p-2 ${overlayControl}`}
-            >
-              <CrossIcon className="h-5 w-5 shrink-0" />
-            </button>
-          </div>
-
-          {/* The full image — bare <img>, object-contain, capped to the viewport. */}
-          <div className="flex items-center justify-center gap-2">
-            {count > 1 ? (
-              <NavButton onClick={prev} label="Previous image">
-                <ChevronLeftIcon className="h-6 w-6" />
-              </NavButton>
-            ) : null}
-
-            {/* `key` forces a remount on navigation, restarting the fade — without
-                it React reuses the element and the gallery hard-cuts between images. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={active.url}
-              src={active.url}
-              alt={altFor(active, activeIndex!)}
-              decoding="async"
-              className="eeg-image-img max-h-[75vh] w-auto max-w-full rounded-md object-contain shadow-lg"
-            />
-
-            {count > 1 ? (
-              <NavButton onClick={next} label="Next image">
-                <ChevronRightIcon className="h-6 w-6" />
-              </NavButton>
-            ) : null}
-          </div>
-        </Modal>
+      {activeIndex !== null ? (
+        <ImageLightbox
+          images={images}
+          initialIndex={activeIndex}
+          onClose={() => setActiveIndex(null)}
+        />
       ) : null}
     </>
-  );
-}
-
-/**
- * Chrome for the controls floating over the lightbox. These sit on an arbitrary
- * IMAGE, not a theme surface, so they can't use the app's --surface/--accent
- * chrome — a translucent black plate and a white ring are what stay legible over
- * both a light and a dark EEG trace.
- */
-const overlayControl =
-  "rounded-full bg-[color-mix(in_srgb,black_50%,transparent)] text-white backdrop-blur-sm outline-none transition duration-150 " +
-  "hover:bg-[color-mix(in_srgb,black_70%,transparent)] active:scale-95 " +
-  "focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black";
-
-/** A large prev/next control flanking the lightbox image. */
-function NavButton({
-  onClick,
-  label,
-  children,
-}: {
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      className={`shrink-0 p-2 ${overlayControl}`}
-    >
-      {children}
-    </button>
   );
 }

@@ -133,6 +133,21 @@ function bucketByDay(timestamps: Date[], days: number, now: Date): TimePoint[] {
 }
 
 /**
+ * Consecutive active days ending today or yesterday. A day counts when it has at
+ * least one attempt; if neither of those two most recent days is active, the
+ * streak is zero. The dense activity series supplies every needed day already.
+ */
+function practiceStreak(activity: TimePoint[]): number {
+  const today = activity.length - 1;
+  const end = activity[today]?.count ? today : activity[today - 1]?.count ? today - 1 : -1;
+  if (end < 0) return 0;
+
+  let streak = 0;
+  for (let index = end; index >= 0 && activity[index]!.count > 0; index -= 1) streak += 1;
+  return streak;
+}
+
+/**
  * One day-group from the trend queries: the day as an ALREADY-FORMATTED yyyy-mm-dd
  * string, and how many rows fell in it.
  *
@@ -199,6 +214,8 @@ export interface UserSummary {
   lastActiveAt: Date | null;
   /** Daily activity (attempt counts) over the trailing window. */
   activity: TimePoint[];
+  /** Consecutive active days ending today or yesterday. */
+  practiceStreak: number;
   /** Attempts in the trailing window vs the equal window before it (a count). */
   attemptsTrend: Trend;
   /**
@@ -299,6 +316,7 @@ export async function getUserSummary(
     activityDays,
     now,
   );
+  const streak = practiceStreak(activity);
 
   // Both windows are partitioned out of the `attempts` rows already in memory, so
   // the trends add no query.
@@ -341,6 +359,7 @@ export async function getUserSummary(
     accuracyTrend,
     lastActiveAt,
     activity,
+    practiceStreak: streak,
     byDifficulty,
     byCategory,
     weakCategories,
